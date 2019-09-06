@@ -9,7 +9,7 @@ import seaborn as sns
 from scipy.stats import entropy
 
 sns.set()
-
+# example change
 
 #converts decimals to binary
 def int_to_binary(num, pad=4):
