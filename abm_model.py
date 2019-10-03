@@ -7,6 +7,7 @@ from moviepy.video.io.bindings import mplfig_to_npimage
 import  moviepy.editor as mpy
 import seaborn as sns
 from scipy.stats import entropy
+import pandas as pd
 
 sns.set()
 # example change
