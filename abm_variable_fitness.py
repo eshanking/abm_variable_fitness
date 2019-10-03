@@ -1,3 +1,6 @@
+# IMPORTANT TO DO:
+# ALLOW FOR SIZE 16 DATA FILES!!!!
+
 import numpy as np
 import matplotlib.pyplot as plt
 import networkx as nx
@@ -8,6 +11,7 @@ import  moviepy.editor as mpy
 import seaborn as sns
 from scipy.stats import entropy
 import pandas as pd
+from cycler import cycler
 
 # converts decimals to binary
 def int_to_binary(num, pad=4):
@@ -29,10 +33,12 @@ def random_mutations(N):
     for mm in range(N):
         for nn in range(N):
             trans_mat[mm, nn] = hammingDistance( int_to_binary(mm) , int_to_binary(nn))
-
+    # Don't include mutant no. 4
+    trans_mat[3,:] = 0
+    trans_mat[:,3] = 0
+    
     trans_mat[trans_mat>1] = 0
     trans_mat = trans_mat/trans_mat.sum(axis=1)
-
     return trans_mat
 
 def load_fitness(data_path):
@@ -50,10 +56,10 @@ def gen_fitness(allele,conc,drugless_rate,ic50):
     c = -.6824968
 #    c = -100
     # logistic equation from Ogbunugafor 2016
-    conc = conc/10**4;
+    conc = conc/10**6;
     
     # ic50 is already log-ed in the dataset
-    log_eqn = lambda d,i: d/(1+np.exp((i-np.log(conc))/c))
+    log_eqn = lambda d,i: d/(1+np.exp((i-np.log10(conc))/c))
     
     fitness = log_eqn(drugless_rate[allele],ic50[allele])
 #    fitness = 0
@@ -62,49 +68,66 @@ def gen_fitness(allele,conc,drugless_rate,ic50):
 # generates drug concentration curves
 def calc_conc(step,
               curve_type='linear',
-              const_dose = 0):
+              const_dose = 0,
+              steepness=100,
+              max_dose = 10,
+              h_step = 100,
+              min_dose=1
+              ):
+#    steepness = 100
     if curve_type == 'linear':
 #        print('here')
-        if step <= 500:
-            slope = (10**3-10**(-3))/500
+        if step <= steepness:
+            slope = (max_dose-10**(-3))/steepness
             conc = slope*step+10**-3
         else:
-            step = 500
-            slope = (10**3-10**(-3))/500
+            step = steepness
+            slope = (max_dose-10**(-3))/steepness
             conc = slope*step+10**-3
     elif curve_type == 'constant':
         conc = const_dose
-    else:
+    elif curve_type == 'log':
         conc = np.log(step)
         # output in uM
+    elif curve_type == 'heaviside':
+        if step <= h_step:
+            conc = min_dose
+        else:
+            conc = max_dose    
     return conc
 
-def var_fit_automaton(n_gen=40,  # Number of simulated generations
-                  mut_rate=0.1,  # probability of mutation per generation
+def var_fit_automaton(drugless_rates,
+                  ic50,
+                  n_gen=40,  # Number of simulated generations
+                  mut_rate=0.001,  # probability of mutation per generation
                   max_cells=10**5,  # Max number of cells
                   death_rate=0.3,  # Death rate
                   init_counts=None,
                   carrying_cap=True,
                   plot = True,
                   curve_type = 'linear',
-                  const_dose = 0
+                  const_dose = 0,
+                  slope=100,
+                  max_dose = 10,
+                  min_dose=1,
+                  h_step=100
                   ):
 
-    drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
-    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
-    
-    drugless_rates = load_fitness(drugless_path)
-    ic50 = load_fitness(ic50_path)
+#    drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
+##    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
+#    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
+#    drugless_rates = load_fitness(drugless_path)
+#    ic50 = load_fitness(ic50_path)
     
     # Number of different alleles
-    n_allele = len(drugless_rates)
+    n_allele = len(drugless_rates)+1
     # Obtain transition matrix for mutations
     P = random_mutations( n_allele )
    
     
     # Keeps track of cell counts at each generation
     counts = np.zeros([n_gen+1, n_allele], dtype=int)
-    drug_curve = np.zeros(n_gen+1)
+    drug_curve = np.zeros(n_gen)
 
     if init_counts is None:
         counts[0] = 10*np.ones(n_allele)
@@ -119,15 +142,25 @@ def var_fit_automaton(n_gen=40,  # Number of simulated generations
             conc = const_dose
 #            print('here')
         else:
-            conc = calc_conc(mm,curve_type)
+            conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,h_step=h_step,min_dose=min_dose)
         
         drug_curve[mm] = conc
         
         fit_land = np.zeros(n_allele)
         
+        # Allele 3 not included n simulation
         for kk in range(n_allele):
-            fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
+            if kk == 3:
+                fit_land[kk] = 0
+#            elif kk == 14:
+#                fit_land[kk] = 0
+            elif kk < 3:
+                fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
+            elif kk > 3:
+                fit_land[kk] = gen_fitness(kk-1,conc,drugless_rates,ic50)
+#            fit_land[0]=1.45
 #            print(str(conc))
+#        print(str(fit_land))
         
         n_cells = np.sum( counts[mm] )
 
@@ -180,58 +213,184 @@ def var_fit_automaton(n_gen=40,  # Number of simulated generations
         plot_timecourse(counts,drug_curve)
 #        print('im here!')
 #    return counts
-    return counts
+    return counts, drug_curve
 
 def plot_timecourse(counts, drug_curve,
-                    fig_title = ''):
-    fig, ax = plt.subplots(figsize = (10,7))
+                    fig_title = '',
+                    log_scale=True):
+    fig, ax = plt.subplots(figsize = (6,4))
 #    plt.rcParams.update({'font.size': 22})
+    counts_total = np.sum(counts,axis=0)
+    
+    sorted_index = counts_total.argsort()
+    sorted_index_big = sorted_index[8:]
+    
+#    colors = sns.color_palette('Set1')
+#    colors = sns.color_palette("hls", 8)
+    colors = sns.color_palette('bright')
+    colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
+    # shuffle colors
+#    c1 = colors[15]
+#    c2 = colors[14]
+#    colors[15] = c2
+#    colors[14] = c1
+    colors[[14,15]] = colors[[15,14]]
+    
+    cc = (cycler(color=colors) + 
+          cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
+                            '--','--','--','--','--','--','--']))
+    
+    ax.set_prop_cycle(cc)
 
-    for allele in range(0,counts.shape[1]-1):
-        plt.plot(counts[:,allele],linewidth=3.0)
+    for allele in range(counts.shape[1]):
+        if allele in sorted_index_big:
+            ax.plot(counts[:,allele],linewidth=3.0,label=str(int_to_binary(allele)))
+#            print(str(allele))
+        else:
+            ax.plot(counts[:,allele],linewidth=3.0,label=None)
+    ax.legend(loc=(1.25,.03),frameon=False,fontsize=15)
+#        ax.legend([str(int_to_binary(allele))])
         
-    plt.xlim(0,counts.shape[0])
+    ax.set_xlim(0,counts.shape[0])
     ax.set_facecolor(color='w')
     ax.grid(False)
 
-    plt.xlabel('Generations',fontsize=20)
-    plt.ylabel('Cells',fontsize=20)
-    plt.xticks(fontsize=18)
-    plt.yticks(fontsize=18)
+    ax.set_xlabel('Time',fontsize=20)
+    ax.set_ylabel('Cells',fontsize=20)
+    ax.tick_params(labelsize=20)
+    ax.set_yticks([0,20000,40000,60000,80000,100000])
+    ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
+                        '$8x10^{5}$','$10x10^{5}$'])
+#    plt.yticks(fontsize=18)
+#    ax.set_ylim(0,ax.get_ylim()[1])
+#    ax.set_ylim(0,80000)
+    ax.set_ylim(0,100000)
+    
+#    ylabel = ax.yaxis.get_label()
+#    ylabel_xpos = ylabel.get_position()[0]
     
     ax2 = ax.twinx()
     color = 'k'
-    ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20)  # we already handled the x-label with ax1
+    ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
+    
+    if log_scale:
+        drug_curve = np.log10(drug_curve)
+        yticks = np.log10([10**-4,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])    
+        ax2.set_yticks(yticks)
+        ax2.set_yticklabels(['0','$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
+                         '$10^1$','$10^2$','$10^3$'])
+        ax2.set_ylim(-4,3)
+    else:
+        ax2.set_ylim(0,1.1*max(drug_curve))
+
     ax2.plot(drug_curve, color=color, linewidth=3.0, linestyle = 'dashed')
     ax2.tick_params(axis='y', labelcolor=color)
     
-    ax2.legend(['Drug Concentration'],loc=(.7,.9))
+#    ax2.legend(['Drug Concentration'],loc=(.7,.9))
+#    leg_loc = ax.get_legend().get_window_extent().p1 # in pixels
+#    leg_loc = ax.get_legend()
+#    leg_loc = leg_loc.get_window_extent()
+#    leg_loc = leg_loc.p1
     
-    plt.xticks(fontsize=18)
-    plt.yticks(fontsize=18)
-    plt.title(fig_title,fontsize=20)
+#    ax_ll = ax2.get_window_extent().p0 # lower left pos of axes
+#    ax_ur = ax2.get_window_extent().p1 # upper right pos of axes
+#    ax_width = ax_ur[0]-ax_ll[0]
+#    ax_height = ax_ur[1]-ax_ll[1]
+#    
+#    leg_loc[0] = leg_loc[0]/ax_width
+#    leg_loc[1] = leg_loc[1]/ax_height
+
+    ax2.legend(['Drug Conc.'],loc=(1.25,0.85),frameon=False,fontsize=15)
+#    ax2.set_ylim(ymin=0,ymax=10**3)
+#    ax2.set_yscale('log')
+#    ax2.set_ylim(0,10**3)
+ 
+#    t_0 = np.array([0])
+#    yticks = np.log10([10**-4,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])
+##    yticks = np.concatenate((t_0,t_1),axis=None)
+#    
+#    ax2.set_yticks(yticks)
+#    ax2.set_yticklabels(['0','$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
+#                         '$10^1$','$10^2$','$10^3$'])
+#    ax.set_yticks
+#    plt.ylim(0,10**3)
+#    plt.ylim(0,max(drug_curve)+0.1*max(drug_curve))
+    
+    ax2.tick_params(labelsize=18)
+#    plt.yticks(fontsize=18)
+    ax2.set_title(fig_title,fontsize=20)
+
+#    fig.tight_layout()
     plt.show()
     return ax
 
-def plot_fitness_curves():
+def plot_fitness_curves(fig_title=''):
     
     drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
-    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
-    
+#    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
+    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
     drugless_rates = load_fitness(drugless_path)
     ic50 = load_fitness(ic50_path)
     
-    fig, ax = plt.subplots(figsize = (10,7))
+    fig, ax = plt.subplots(figsize = (8,5))
     
-    powers = np.linspace(-3,5,9)
-    conc = np.power(10*np.ones(9),powers)
+    powers = np.linspace(-3,5,20)
+    conc = np.power(10*np.ones(powers.shape[0]),powers)
     fit = np.zeros(conc.shape[0])
     
-    for i in range(15):
-        for j in range(conc.shape[0]):
-            fit[j] = gen_fitness(i,conc[j],drugless_rates,ic50)
-        plt.plot(fit)
-    ind = np.arange(9)
-    plt.xticks(ind,['10^-3','10^-2','10^-1','10^0','10^1','10^2','10^3','10^4','10^5'])
+    colors = sns.color_palette('bright')
+    colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
+    colors[[14,15]] = colors[[15,14]]
     
+    cc = (cycler(color=colors) + 
+          cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
+                            '--','--','--','--','--','--','--']))
+    ax.set_prop_cycle(cc) 
+    
+    for allele in range(16):
+        if allele == 3:
+            fit = np.zeros(conc.shape[0])
+        if allele > 3:
+#            allele = allele-1
+            for j in range(conc.shape[0]):
+                fit[j] = gen_fitness(allele-1,conc[j],drugless_rates,ic50)
+        else:
+            for j in range(conc.shape[0]):
+                fit[j] = gen_fitness(allele,conc[j],drugless_rates,ic50)
+        ax.plot(powers,fit,linewidth=3,label=str(int_to_binary(allele)))
+#    ind = np.arange(9)
+    ax.legend(fontsize=15,frameon=False,loc=(1.05,-.30))
+    ax.set_xticks([-3,-2,-1,0,1,2,3,4,5])
+    ax.set_xticklabels(['$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
+                         '$10^1$','$10^2$','$10^3$','$10^4$','$10^5$'])
+    
+    plt.title(fig_title,fontsize=20)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    
+    plt.xlabel('Drug concentration ($\mathrm{\mu}$M)',fontsize=20)
+    plt.ylabel('Growth Rate',fontsize=20)
+    ax.set_frame_on(False)
     return ax
+
+def plot_2d_fitness(cmap='magma_r'):
+    curve_path = 'C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\cyc_2d_fitness_curve.csv'
+    
+    curve = pd.read_csv(curve_path,header=None)
+    curve = np.array(curve)
+    fig, ax = plt.subplots(figsize=(10,8))
+    x_ticks = ['0','$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
+                         '$10^1$','$10^2$','$10^3$','$10^4$','$10^5$']
+    
+    y_ticks = []
+    for allele in range(16):
+        y_ticks.append(str(int_to_binary(allele)))
+    sns.heatmap(curve,linewidth = 0.5,cmap=cmap,square=False,yticklabels=y_ticks,xticklabels=x_ticks,ax=ax)
+#    ax.
+    ax.yaxis.set_tick_params(rotation=0)
+    ax.tick_params(axis='y',labelsize=15)
+    ax.tick_params(axis='x',labelsize=15)
+    ax.set_xlabel('Concentration (uM)',fontsize=20)
+    ax.set_ylabel('Allele',fontsize=20)
+    plt.title('Cycloguanil',fontsize=20)
+    return
