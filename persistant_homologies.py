@@ -18,7 +18,7 @@ ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_v
 def is_local_max(allele, conc,
                  n_alleles=16,
                  min_prominence=.01):
-    ###########################################################################
+###############################################################################
     # generate the nearest neighbors in base-10
     bin_allele = int_to_binary(allele)
     bin_allele = list(bin_allele)
@@ -44,7 +44,7 @@ def is_local_max(allele, conc,
         neighbors[kk] = allele-2**power
         kk+=1
 #    return neighbors
-    ###########################################################################
+###############################################################################
     # Determine if the current allele is a local maxima with a prominance 
     # greater than the min prominance
     

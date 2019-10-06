@@ -120,7 +120,8 @@ def var_fit_automaton(drugless_rates,
 #    ic50 = load_fitness(ic50_path)
     
     # Number of different alleles
-    n_allele = len(drugless_rates)+1
+    n_allele = len(drugless_rates)
+#    print(str(drugless_rates.shape))
     # Obtain transition matrix for mutations
     P = random_mutations( n_allele )
    
@@ -157,7 +158,7 @@ def var_fit_automaton(drugless_rates,
             elif kk < 3:
                 fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
             elif kk > 3:
-                fit_land[kk] = gen_fitness(kk-1,conc,drugless_rates,ic50)
+                fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
 #            fit_land[0]=1.45
 #            print(str(conc))
 #        print(str(fit_land))
@@ -209,6 +210,116 @@ def var_fit_automaton(drugless_rates,
             daughter_counts[allele] -=n_mut
 
         counts[mm+1] += daughter_counts
+    if plot:
+        plot_timecourse(counts,drug_curve)
+#        print('im here!')
+#    return counts
+    return counts, drug_curve
+
+def vectorized_abm(drugless_rates,
+                  ic50,
+                  n_gen=40,  # Number of simulated generations
+                  mut_rate=0.001,  # probability of mutation per generation
+                  mut_noise=0.05,
+                  max_cells=10**5,  # Max number of cells
+                  death_rate=0.3,  # Death rate
+                  death_noise=0.1,
+                  init_counts=None,
+                  carrying_cap=True,
+                  plot = True,
+                  curve_type = 'linear',
+                  const_dose = 0,
+                  slope=100,
+                  max_dose = 10,
+                  min_dose=1,
+                  h_step=100
+                  ):
+
+    # Obtain transition matrix for mutations
+
+    # Number of different alleles
+    n_allele = len(drugless_rates)
+    P = random_mutations(n_allele)
+    print(str(n_allele))
+    # Keeps track of cell counts at each generation
+    counts = np.zeros([n_gen, n_allele])
+    drug_curve = np.zeros(n_gen)
+
+    if init_counts is None:
+        counts[0, :] = 10
+    else:
+        counts[0, :] = init_counts
+
+
+    for mm in range(n_gen):
+        if curve_type == 'constant':
+            # dose is in uM
+#            conc = calc_conc(mm,curve_type,const_dose)
+            conc = const_dose
+#            print('here')
+        else:
+            conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,h_step=h_step,min_dose=min_dose)
+        
+        drug_curve[mm] = conc
+        
+        fit_land = np.zeros(n_allele)
+        
+        # Allele 3 not included n simulation
+        for kk in range(n_allele):
+            if kk == 3:
+                fit_land[kk] = 0
+#            elif kk == 14:
+#                fit_land[kk] = 0
+            elif kk < 3:
+                fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
+            elif kk > 3:
+                fit_land[kk] = gen_fitness(kk-1,conc,drugless_rates,ic50)
+
+        # Death of cells
+        n_cells = np.sum(counts[mm])
+
+        dead_cells = np.random.normal(death_rate, death_noise, n_allele)
+        dead_cells =  counts[mm]* dead_cells
+
+        counts[mm] = counts[mm] - np.int_(dead_cells)
+        counts[mm, counts[mm] < 0] = 0
+
+        # Divide and mutate
+        # Scale division rates based on carrying capacity
+        if carrying_cap:
+            division_scale = 1 / (1+(2*np.sum(counts[mm])/max_cells)**4)
+        else:
+            division_scale = 1
+
+        if counts[mm].sum()>max_cells:
+            division_scale = 0
+
+        dividing_cells = np.int_(counts[mm]*fit_land*division_scale)
+
+#         mutating_cells = dividing_cells*mut_rate
+
+        mutating_cells = np.random.normal(mut_rate, mut_noise, n_allele)
+        mutating_cells =  dividing_cells* mutating_cells
+        mutating_cells = np.int_(mutating_cells)
+
+        final_types = np.zeros(n_allele)
+
+        # Mutate cells of each allele type
+        for allele in np.random.permutation(np.arange(n_allele)):
+            if mutating_cells[allele] > 0:
+                mutations = np.random.choice(
+                    n_allele, size=mutating_cells[allele], p=P[allele])
+
+                final_types += np.bincount(mutations, minlength=n_allele)
+
+        # Add final types to the cell counts
+        new_counts = counts[mm] + dividing_cells - mutating_cells + final_types
+
+        counts[mm] = new_counts
+        counts[mm, counts[mm] < 0] = 0
+
+        if mm < n_gen-1:
+            counts[mm+1] = counts[mm]
     if plot:
         plot_timecourse(counts,drug_curve)
 #        print('im here!')
