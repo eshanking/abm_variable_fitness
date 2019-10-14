@@ -1,14 +1,20 @@
 import numpy as np
 import matplotlib.pyplot as plt
-import networkx as nx
-import matplotlib.gridspec as gridspec
-
-from moviepy.video.io.bindings import mplfig_to_npimage
-import  moviepy.editor as mpy
+#import networkx as nx
+#import matplotlib.gridspec as gridspec
+#
+#from moviepy.video.io.bindings import mplfig_to_npimage
+#import  moviepy.editor as mpy
 import seaborn as sns
-from scipy.stats import entropy
+#from scipy.stats import entropy
 import pandas as pd
 from cycler import cycler
+
+#def pharm_curve(t):
+#    K_elim = .005
+#    K_abs = .1
+#    conc = np.exp(-K_elim*t)-np.exp(-K_abs*t)
+#    return conc
 
 # converts decimals to binary
 def int_to_binary(num, pad=4):
@@ -31,11 +37,13 @@ def random_mutations(N):
         for nn in range(N):
             trans_mat[mm, nn] = hammingDistance( int_to_binary(mm) , int_to_binary(nn))
     # Don't include mutant no. 4
-    trans_mat[3,:] = 0
-    trans_mat[:,3] = 0
     
     trans_mat[trans_mat>1] = 0
     trans_mat = trans_mat/trans_mat.sum(axis=1)
+    
+#    trans_mat[3,:] = 0
+#    trans_mat[:,3] = 0
+#    print(str(trans_mat))
     return trans_mat
 
 def load_fitness(data_path):
@@ -57,8 +65,10 @@ def gen_fitness(allele,conc,drugless_rate,ic50):
     
     # ic50 is already log-ed in the dataset
     log_eqn = lambda d,i: d/(1+np.exp((i-np.log10(conc))/c))
-    
-    fitness = log_eqn(drugless_rate[allele],ic50[allele])
+    if conc <= 0:
+        fitness = drugless_rate[allele]
+    else:
+        fitness = log_eqn(drugless_rate[allele],ic50[allele])
 #    fitness = 0
     return fitness
 
@@ -69,7 +79,9 @@ def calc_conc(step,
               steepness=100,
               max_dose = 10,
               h_step = 100,
-              min_dose=1
+              min_dose=1,
+              K_elim=0.01,
+              K_abs=0.1
               ):
 #    steepness = 100
     if curve_type == 'linear':
@@ -90,8 +102,46 @@ def calc_conc(step,
         if step <= h_step:
             conc = min_dose
         else:
-            conc = max_dose    
+            conc = max_dose 
+    elif curve_type == 'pharm':
+        conc = np.exp(-K_elim*step)-np.exp(-K_abs*step)
+        t_max = np.log(K_elim/K_abs)/(K_elim-K_abs)
+        conc = conc/(np.exp(-K_elim*t_max)-np.exp(-K_abs*t_max))
+        conc = conc*max_dose
     return conc
+
+def pharm_eqn(t,k_elim=0.01,k_abs=0.1,max_dose=1):
+    conc = np.exp(-k_elim*t)-np.exp(-k_abs*t)
+    t_max = np.log(k_elim/k_abs)/(k_elim-k_abs)
+    conc = conc/(np.exp(-k_elim*t_max)-np.exp(-k_abs*t_max))
+    conc = conc*max_dose
+    return conc
+
+def convolve_pharm(u,t_max,
+                   k_elim=0.01,
+                   k_abs=0.1,
+                   max_dose=1):
+    
+    conv = np.zeros(t_max)
+    for t in range(t_max):
+        for tau in range(t_max):
+#            if t > 
+            if t-tau >= 0 and t-tau<u.shape[0]:
+#                g = pharm_eqn(tau,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
+                conv[t] += u[t-tau]*pharm_eqn(tau,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
+    return conv
+
+def gen_impulses(n_impulse,t_max,
+                 pad_right=True):
+    gap = np.floor(t_max/n_impulse)
+    u = np.zeros(t_max)
+    if pad_right:
+        impulse_indx = np.arange(n_impulse)*gap
+    else:
+        impulse_indx = np.arange(n_impulse+1)*gap-1
+    impulse_indx = impulse_indx.astype(int)
+    u[impulse_indx]=1 
+    return u
 
 def var_fit_automaton(drugless_rates,
                   ic50,
@@ -107,7 +157,9 @@ def var_fit_automaton(drugless_rates,
                   slope=100,
                   max_dose = 10,
                   min_dose=1,
-                  h_step=100
+                  h_step=100,
+                  k_elim=0.01,
+                  k_abs=0.1
                   ):
 
 #    drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
@@ -140,7 +192,11 @@ def var_fit_automaton(drugless_rates,
             conc = const_dose
 #            print('here')
         else:
-            conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,h_step=h_step,min_dose=min_dose)
+            conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,
+                             h_step=h_step,
+                             min_dose=min_dose,
+                             K_elim=k_elim,
+                             K_abs=k_abs)
         
         drug_curve[mm] = conc
         
@@ -202,7 +258,7 @@ def var_fit_automaton(drugless_rates,
 
             #Add mutating cell to their final types
             counts[mm+1] +=np.bincount( mutations , minlength=n_allele)
-
+            counts[:,3] =  0
             #Substract mutating cells from that allele
             daughter_counts[allele] -=n_mut
 
@@ -273,7 +329,7 @@ def vectorized_abm(drugless_rates,
                 fit_land[kk] = gen_fitness(kk-1,conc,drugless_rates,ic50)
 
         # Death of cells
-        n_cells = np.sum(counts[mm])
+#        n_cells = np.sum(counts[mm])
 
         dead_cells = np.random.normal(death_rate, death_noise, n_allele)
         dead_cells =  counts[mm]* dead_cells
@@ -325,7 +381,8 @@ def vectorized_abm(drugless_rates,
 
 def plot_timecourse(counts, drug_curve,
                     fig_title = '',
-                    log_scale=True):
+                    drug_log_scale=False,
+                    counts_log_scale=False):
     fig, ax = plt.subplots(figsize = (6,4))
 #    plt.rcParams.update({'font.size': 22})
     counts_total = np.sum(counts,axis=0)
@@ -349,7 +406,10 @@ def plot_timecourse(counts, drug_curve,
                             '--','--','--','--','--','--','--']))
     
     ax.set_prop_cycle(cc)
-
+#    if counts_log_scale:
+#        counts[counts==0] = np.nan
+#        counts = np.log10(counts)
+#        counts[counts==np.nan] = 0
     for allele in range(counts.shape[1]):
         if allele in sorted_index_big:
             ax.plot(counts[:,allele],linewidth=3.0,label=str(int_to_binary(allele)))
@@ -357,6 +417,7 @@ def plot_timecourse(counts, drug_curve,
         else:
             ax.plot(counts[:,allele],linewidth=3.0,label=None)
     ax.legend(loc=(1.25,.03),frameon=False,fontsize=15)
+#    ax.legend(frameon=False,fontsize=15)
 #        ax.legend([str(int_to_binary(allele))])
         
     ax.set_xlim(0,counts.shape[0])
@@ -366,13 +427,18 @@ def plot_timecourse(counts, drug_curve,
     ax.set_xlabel('Time',fontsize=20)
     ax.set_ylabel('Cells',fontsize=20)
     ax.tick_params(labelsize=20)
-    ax.set_yticks([0,20000,40000,60000,80000,100000])
-    ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
-                        '$8x10^{5}$','$10x10^{5}$'])
+    if counts_log_scale:
+        ax.set_yscale('log')
+        ax.set_ylim(10,5*10**5)
+    else:
+        ax.set_yticks([0,20000,40000,60000,80000,100000])
+        ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
+                            '$8x10^{5}$','$10x10^{5}$'])
+        ax.set_ylim(0,100000)
 #    plt.yticks(fontsize=18)
 #    ax.set_ylim(0,ax.get_ylim()[1])
 #    ax.set_ylim(0,80000)
-    ax.set_ylim(0,100000)
+    
     
 #    ylabel = ax.yaxis.get_label()
 #    ylabel_xpos = ylabel.get_position()[0]
@@ -381,7 +447,7 @@ def plot_timecourse(counts, drug_curve,
     color = 'k'
     ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
     
-    if log_scale:
+    if drug_log_scale:
         drug_curve = np.log10(drug_curve)
         yticks = np.log10([10**-4,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])    
         ax2.set_yticks(yticks)
@@ -435,8 +501,8 @@ def plot_timecourse(counts, drug_curve,
 def plot_fitness_curves(fig_title=''):
     
     drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
-#    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
-    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
+    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
+#    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
     drugless_rates = load_fitness(drugless_path)
     ic50 = load_fitness(ic50_path)
     
@@ -459,9 +525,8 @@ def plot_fitness_curves(fig_title=''):
         if allele == 3:
             fit = np.zeros(conc.shape[0])
         if allele > 3:
-#            allele = allele-1
             for j in range(conc.shape[0]):
-                fit[j] = gen_fitness(allele-1,conc[j],drugless_rates,ic50)
+                fit[j] = gen_fitness(allele,conc[j],drugless_rates,ic50)
         else:
             for j in range(conc.shape[0]):
                 fit[j] = gen_fitness(allele,conc[j],drugless_rates,ic50)
