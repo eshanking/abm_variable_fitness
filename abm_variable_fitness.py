@@ -1,20 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
-#import networkx as nx
-#import matplotlib.gridspec as gridspec
-#
-#from moviepy.video.io.bindings import mplfig_to_npimage
-#import  moviepy.editor as mpy
 import seaborn as sns
-#from scipy.stats import entropy
 import pandas as pd
 from cycler import cycler
-
-#def pharm_curve(t):
-#    K_elim = .005
-#    K_abs = .1
-#    conc = np.exp(-K_elim*t)-np.exp(-K_abs*t)
-#    return conc
 
 # converts decimals to binary
 def int_to_binary(num, pad=4):
@@ -46,6 +34,7 @@ def random_mutations(N):
 #    print(str(trans_mat))
     return trans_mat
 
+# load fitness data from a csv file
 def load_fitness(data_path):
     # also use to load ic50 and drugless growth rate
     fitness = pd.read_csv(data_path)
@@ -54,6 +43,7 @@ def load_fitness(data_path):
     fit_array = fit_array.astype(np.float)
     return fit_array
 
+# calculate fitness given a genotype and drug concentration (Ogbunugafor 2016)
 def gen_fitness(allele,conc,drugless_rate,ic50):
     # input: allele (integer from 0 to 15)
     # conc: current drug concentration
@@ -110,6 +100,7 @@ def calc_conc(step,
         conc = conc*max_dose
     return conc
 
+# Equation for a simple pharmacokinetic model
 def pharm_eqn(t,k_elim=0.01,k_abs=0.1,max_dose=1):
     conc = np.exp(-k_elim*t)-np.exp(-k_abs*t)
     t_max = np.log(k_elim/k_abs)/(k_elim-k_abs)
@@ -117,20 +108,23 @@ def pharm_eqn(t,k_elim=0.01,k_abs=0.1,max_dose=1):
     conc = conc*max_dose
     return conc
 
+# Convolve the arbitrary curve u with the pharmacokinetic model
 def convolve_pharm(u,t_max,
                    k_elim=0.01,
                    k_abs=0.1,
                    max_dose=1):
     
+    # k_lim and k_abs are the absorption and elimination rate constants for the pharmacokinetic model
+    # t_max is the max length of the output curve
+    # algorithm is at best O(n^2)...
     conv = np.zeros(t_max)
     for t in range(t_max):
         for tau in range(t_max):
-#            if t > 
             if t-tau >= 0 and t-tau<u.shape[0]:
-#                g = pharm_eqn(tau,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
                 conv[t] += u[t-tau]*pharm_eqn(tau,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
     return conv
 
+# Generates an impulse train to input to convolve_pharm()
 def gen_impulses(n_impulse,t_max,
                  pad_right=True):
     gap = np.floor(t_max/n_impulse)
@@ -159,7 +153,8 @@ def var_fit_automaton(drugless_rates,
                   min_dose=1,
                   h_step=100,
                   k_elim=0.01,
-                  k_abs=0.1
+                  k_abs=0.1,
+                  pharm_impulse_response=0
                   ):
 
 #    drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
@@ -176,7 +171,7 @@ def var_fit_automaton(drugless_rates,
    
     
     # Keeps track of cell counts at each generation
-    counts = np.zeros([n_gen+1, n_allele], dtype=int)
+    counts = np.zeros([n_gen, n_allele], dtype=int)
     drug_curve = np.zeros(n_gen)
 
     if init_counts is None:
@@ -184,13 +179,16 @@ def var_fit_automaton(drugless_rates,
     else:
         counts[0] = init_counts
 
-    for mm in range(n_gen):
+    for mm in range(n_gen-1):
         
         if curve_type == 'constant':
             # dose is in uM
-#            conc = calc_conc(mm,curve_type,const_dose)
             conc = const_dose
-#            print('here')
+        elif curve_type == 'impulse-response':
+            if mm>pharm_impulse_response.shape[0]-1:
+                conc=0
+            else:
+                conc = pharm_impulse_response[mm]
         else:
             conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,
                              h_step=h_step,
@@ -202,19 +200,14 @@ def var_fit_automaton(drugless_rates,
         
         fit_land = np.zeros(n_allele)
         
-        # Allele 3 not included n simulation
+
         for kk in range(n_allele):
             if kk == 3:
                 fit_land[kk] = 0
-#            elif kk == 14:
-#                fit_land[kk] = 0
             elif kk < 3:
                 fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
             elif kk > 3:
                 fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
-#            fit_land[0]=1.45
-#            print(str(conc))
-#        print(str(fit_land))
         
         n_cells = np.sum( counts[mm] )
 
@@ -264,6 +257,7 @@ def var_fit_automaton(drugless_rates,
 
         counts[mm+1] += daughter_counts
     if plot:
+        print(str('here!'))
         plot_timecourse(counts,drug_curve)
 #        print('im here!')
 #    return counts
@@ -280,12 +274,15 @@ def vectorized_abm(drugless_rates,
                   init_counts=None,
                   carrying_cap=True,
                   plot = True,
-                  curve_type = 'linear',
+                  curve_type = 'constant',
                   const_dose = 0,
                   slope=100,
                   max_dose = 10,
                   min_dose=1,
-                  h_step=100
+                  h_step=100,
+                  k_elim=0.01,
+                  k_abs=0.1,
+                  pharm_impulse_response = 0
                   ):
 
     # Obtain transition matrix for mutations
@@ -293,7 +290,8 @@ def vectorized_abm(drugless_rates,
     # Number of different alleles
     n_allele = len(drugless_rates)
     P = random_mutations(n_allele)
-    print(str(n_allele))
+#    print(str(n_allele))
+    
     # Keeps track of cell counts at each generation
     counts = np.zeros([n_gen, n_allele])
     drug_curve = np.zeros(n_gen)
@@ -307,26 +305,31 @@ def vectorized_abm(drugless_rates,
     for mm in range(n_gen):
         if curve_type == 'constant':
             # dose is in uM
-#            conc = calc_conc(mm,curve_type,const_dose)
             conc = const_dose
-#            print('here')
+        elif curve_type == 'impulse-response':
+            if mm>pharm_impulse_response.shape[0]-1:
+                conc=0
+            else:
+                conc = pharm_impulse_response[mm]
         else:
-            conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,h_step=h_step,min_dose=min_dose)
+            conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,
+                             h_step=h_step,
+                             min_dose=min_dose,
+                             K_elim=k_elim,
+                             K_abs=k_abs)
         
         drug_curve[mm] = conc
         
         fit_land = np.zeros(n_allele)
         
-        # Allele 3 not included n simulation
+
         for kk in range(n_allele):
             if kk == 3:
                 fit_land[kk] = 0
-#            elif kk == 14:
-#                fit_land[kk] = 0
             elif kk < 3:
                 fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
             elif kk > 3:
-                fit_land[kk] = gen_fitness(kk-1,conc,drugless_rates,ic50)
+                fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
 
         # Death of cells
 #        n_cells = np.sum(counts[mm])
@@ -373,8 +376,8 @@ def vectorized_abm(drugless_rates,
 
         if mm < n_gen-1:
             counts[mm+1] = counts[mm]
-    if plot:
-        plot_timecourse(counts,drug_curve)
+#    if plot:
+#        plot_timecourse(counts,drug_curve)
 #        print('im here!')
 #    return counts
     return counts, drug_curve
@@ -410,31 +413,31 @@ def plot_timecourse(counts, drug_curve,
 #        counts[counts==0] = np.nan
 #        counts = np.log10(counts)
 #        counts[counts==np.nan] = 0
-    for allele in range(counts.shape[1]):
-        if allele in sorted_index_big:
-            ax.plot(counts[:,allele],linewidth=3.0,label=str(int_to_binary(allele)))
-#            print(str(allele))
-        else:
-            ax.plot(counts[:,allele],linewidth=3.0,label=None)
-    ax.legend(loc=(1.25,.03),frameon=False,fontsize=15)
-#    ax.legend(frameon=False,fontsize=15)
-#        ax.legend([str(int_to_binary(allele))])
-        
-    ax.set_xlim(0,counts.shape[0])
-    ax.set_facecolor(color='w')
-    ax.grid(False)
-
-    ax.set_xlabel('Time',fontsize=20)
-    ax.set_ylabel('Cells',fontsize=20)
-    ax.tick_params(labelsize=20)
-    if counts_log_scale:
-        ax.set_yscale('log')
-        ax.set_ylim(10,5*10**5)
-    else:
-        ax.set_yticks([0,20000,40000,60000,80000,100000])
-        ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
-                            '$8x10^{5}$','$10x10^{5}$'])
-        ax.set_ylim(0,100000)
+#    for allele in range(counts.shape[1]):
+#        if allele in sorted_index_big:
+#            ax.plot(counts[:,allele],linewidth=3.0,label=str(int_to_binary(allele)))
+##            print(str(allele))
+#        else:
+#            ax.plot(counts[:,allele],linewidth=3.0,label=None)
+#    ax.legend(loc=(1.25,.03),frameon=False,fontsize=15)
+##    ax.legend(frameon=False,fontsize=15)
+##        ax.legend([str(int_to_binary(allele))])
+#        
+#    ax.set_xlim(0,counts.shape[0])
+#    ax.set_facecolor(color='w')
+#    ax.grid(False)
+#
+#    ax.set_xlabel('Time',fontsize=20)
+#    ax.set_ylabel('Cells',fontsize=20)
+#    ax.tick_params(labelsize=20)
+#    if counts_log_scale:
+#        ax.set_yscale('log')
+#        ax.set_ylim(10,5*10**5)
+#    else:
+#        ax.set_yticks([0,20000,40000,60000,80000,100000])
+#        ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
+#                            '$8x10^{5}$','$10x10^{5}$'])
+#        ax.set_ylim(0,100000)
 #    plt.yticks(fontsize=18)
 #    ax.set_ylim(0,ax.get_ylim()[1])
 #    ax.set_ylim(0,80000)
@@ -444,11 +447,13 @@ def plot_timecourse(counts, drug_curve,
 #    ylabel_xpos = ylabel.get_position()[0]
     
     ax2 = ax.twinx()
-    color = 'k'
+#    color = 'k'
+    color = [0.5,0.5,0.5]
     ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
     
     if drug_log_scale:
-        drug_curve = np.log10(drug_curve)
+        if all(drug_curve>0):
+            drug_curve = np.log10(drug_curve)
         yticks = np.log10([10**-4,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])    
         ax2.set_yticks(yticks)
         ax2.set_yticklabels(['0','$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
@@ -457,7 +462,8 @@ def plot_timecourse(counts, drug_curve,
     else:
         ax2.set_ylim(0,1.1*max(drug_curve))
 
-    ax2.plot(drug_curve, color=color, linewidth=3.0, linestyle = 'dashed')
+#    ax2.plot(drug_curve, color=color, linewidth=3.0, linestyle = 'dashed')
+    ax2.plot(drug_curve, color=color, linewidth=2.0)
     ax2.tick_params(axis='y', labelcolor=color)
     
 #    ax2.legend(['Drug Concentration'],loc=(.7,.9))
@@ -493,6 +499,32 @@ def plot_timecourse(counts, drug_curve,
     ax2.tick_params(labelsize=18)
 #    plt.yticks(fontsize=18)
     ax2.set_title(fig_title,fontsize=20)
+    
+    for allele in range(counts.shape[1]):
+        if allele in sorted_index_big:
+            ax.plot(counts[:,allele],linewidth=3.0,label=str(int_to_binary(allele)))
+#            print(str(allele))
+        else:
+            ax.plot(counts[:,allele],linewidth=3.0,label=None)
+    ax.legend(loc=(1.25,.03),frameon=False,fontsize=15)
+#    ax.legend(frameon=False,fontsize=15)
+#        ax.legend([str(int_to_binary(allele))])
+        
+    ax.set_xlim(0,counts.shape[0])
+    ax.set_facecolor(color='w')
+    ax.grid(False)
+
+    ax.set_xlabel('Time',fontsize=20)
+    ax.set_ylabel('Cells',fontsize=20)
+    ax.tick_params(labelsize=20)
+    if counts_log_scale:
+        ax.set_yscale('log')
+        ax.set_ylim(10,5*10**5)
+    else:
+        ax.set_yticks([0,20000,40000,60000,80000,100000])
+        ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
+                            '$8x10^{5}$','$10x10^{5}$'])
+        ax.set_ylim(0,100000)
 
 #    fig.tight_layout()
     plt.show()

@@ -23,7 +23,7 @@ ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_v
 #n_deaths = n_mutations*50
 n_gen=2000 # Number of simulated generations
 #const_dose = np.array([0,10**-3,10**-2,10**-1,1,100,200])
-const_dose = np.array([1000])
+const_dose = np.array([100])
 
 #mut_rate=n_mutations/n_gen  # probability of mutation per generation
 #death_rate=n_deaths/n_gen  # Death rate
@@ -36,7 +36,7 @@ init_counts[0] = 10000
 
 carrying_cap=True
 plot = False # False - plot the final averaged result only. True - plot every simulation result
-curve_type = 'constant'
+curve_type = 'linear'
 k_elim = 0.005
 k_abs = 0.01
 # note: given k_elim and k_abs, t_max = ln(k_elim/k_abs)/(k_elim-k_abs)
@@ -48,27 +48,28 @@ counts_log_scale = False
 
 
 # Parameters for non-linear curves
-slope=10000
+slope=1000
 max_dose = 1000
 min_dose = 0
 h_step = 100
 
 # number of simulations to average results together.  
 n_sims = 10
+death_noise = 0.01
+mut_noise = 0.005
 ###############################################################################
 # End user inputs
-#if curve_type=='pharm':
-#    max_dose=const_dose
 drugless_rates = sim.load_fitness(drugless_path)
 ic50 = sim.load_fitness(ic50_path)
     
 n_doses = const_dose.shape
 for dose in const_dose:
 
-    counts = np.zeros((n_gen+1,ic50.shape[0]))
+    counts = np.zeros((n_gen,ic50.shape[0]))
     tic=time.time()
     for sim_num in range(n_sims):
-        counts_t, drug_curve = sim.var_fit_automaton(drugless_rates,
+#        counts_t, drug_curve = sim.var_fit_automaton(drugless_rates,
+        counts_t, drug_curve = sim.vectorized_abm(drugless_rates,
                                         ic50,
                                         n_gen=n_gen,  # Number of simulated generations
                                         mut_rate=mut_rate,  # probability of mutation per generation
@@ -84,7 +85,9 @@ for dose in const_dose:
                                         min_dose=min_dose,
                                         h_step=h_step,
                                         k_elim=k_elim,
-                                        k_abs=k_abs)
+                                        k_abs=k_abs,
+                                        death_noise = death_noise,
+                                        mut_noise=mut_noise)
         counts += counts_t
         
     toc=time.time()
