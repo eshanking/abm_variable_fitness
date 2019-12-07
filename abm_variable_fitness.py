@@ -138,24 +138,25 @@ def gen_impulses(n_impulse,t_max,
     return u
 
 def var_fit_automaton(drugless_rates,
-                  ic50,
-                  n_gen=40,  # Number of simulated generations
-                  mut_rate=0.001,  # probability of mutation per generation
-                  max_cells=10**5,  # Max number of cells
-                  death_rate=0.3,  # Death rate
-                  init_counts=None,
-                  carrying_cap=True,
-                  plot = True,
-                  curve_type = 'linear',
-                  const_dose = 0,
-                  slope=100,
-                  max_dose = 10,
-                  min_dose=1,
-                  h_step=100,
-                  k_elim=0.01,
-                  k_abs=0.1,
-                  pharm_impulse_response=0
-                  ):
+                    ic50,
+                    n_gen=40,  # Number of simulated generations
+                    mut_rate=0.001,  # probability of mutation per generation
+                    max_cells=10**5,  # Max number of cells
+                    death_rate=0.3,  # Death rate
+                    init_counts=None,
+                    carrying_cap=True,
+                    plot = True,
+                    curve_type = 'linear',
+                    const_dose = 0,
+                    slope=100,
+                    max_dose = 10,
+                    min_dose=1,
+                    h_step=100,
+                    k_elim=0.01,
+                    k_abs=0.1,
+                    pharm_impulse_response=0,
+                    div_scale = 1
+                    ):
 
 #    drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
 ##    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
@@ -209,6 +210,7 @@ def var_fit_automaton(drugless_rates,
             elif kk > 3:
                 fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
         
+        fit_land = fit_land*div_scale
         n_cells = np.sum( counts[mm] )
 
         # Scale division rates based on carrying capacity
@@ -282,7 +284,8 @@ def vectorized_abm(drugless_rates,
                   h_step=100,
                   k_elim=0.01,
                   k_abs=0.1,
-                  pharm_impulse_response = 0
+                  pharm_impulse_response = 0,
+                  div_scale = 1
                   ):
 
     # Obtain transition matrix for mutations
@@ -331,6 +334,7 @@ def vectorized_abm(drugless_rates,
             elif kk > 3:
                 fit_land[kk] = gen_fitness(kk,conc,drugless_rates,ic50)
 
+        fit_land = fit_land*div_scale # scale division rate
         # Death of cells
 #        n_cells = np.sum(counts[mm])
 
@@ -519,7 +523,7 @@ def plot_timecourse(counts, drug_curve,
     ax.tick_params(labelsize=20)
     if counts_log_scale:
         ax.set_yscale('log')
-        ax.set_ylim(10,5*10**5)
+        ax.set_ylim(1,5*10**5)
     else:
         ax.set_yticks([0,20000,40000,60000,80000,100000])
         ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',

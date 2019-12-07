@@ -16,6 +16,12 @@ ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_v
 
 # try other defaults
 
+# trying to use "real-world" parameters
+# t is in hours
+
+k_abs = 1.32
+k_elim = 0.007
+
 # n_mutations and n_deaths comes from me playing around with the idea of these 
 # simulations being scale-invariant. You can comment them out and use mut_rate 
 # and death_rate instead.
@@ -36,9 +42,12 @@ init_counts[0] = 10000
 
 carrying_cap=True
 plot = False # False - plot the final averaged result only. True - plot every simulation result
-curve_type = 'linear'
-k_elim = 0.005
-k_abs = 0.01
+#curve_type = 'linear'
+curve_type = 'impulse-response'
+u = sim.gen_impulses(1,2000)
+conv = sim.convolve_pharm(u,2000,k_elim=k_elim,k_abs=k_abs,max_dose=10)
+#k_elim = 0.005
+#k_abs = 0.01
 # note: given k_elim and k_abs, t_max = ln(k_elim/k_abs)/(k_elim-k_abs)
 
 #drug_scale = 'log' # put the drug concentration on a log-scale
@@ -54,7 +63,7 @@ min_dose = 0
 h_step = 100
 
 # number of simulations to average results together.  
-n_sims = 10
+n_sims = 1
 death_noise = 0.01
 mut_noise = 0.005
 ###############################################################################
