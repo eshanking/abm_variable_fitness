@@ -42,10 +42,9 @@ init_counts[0] = 10000
 
 carrying_cap=True
 plot = False # False - plot the final averaged result only. True - plot every simulation result
-#curve_type = 'linear'
-curve_type = 'impulse-response'
-u = sim.gen_impulses(1,2000)
-conv = sim.convolve_pharm(u,2000,k_elim=k_elim,k_abs=k_abs,max_dose=10)
+curve_type = 'linear'
+#u = sim.gen_impulses(1,2000)
+#conv = sim.convolve_pharm(u,2000,k_elim=k_elim,k_abs=k_abs,max_dose=10)
 #k_elim = 0.005
 #k_abs = 0.01
 # note: given k_elim and k_abs, t_max = ln(k_elim/k_abs)/(k_elim-k_abs)
@@ -64,8 +63,8 @@ h_step = 100
 
 # number of simulations to average results together.  
 n_sims = 1
-death_noise = 0.01
-mut_noise = 0.005
+#death_noise = 0.01
+#mut_noise = 0.005
 ###############################################################################
 # End user inputs
 drugless_rates = sim.load_fitness(drugless_path)
@@ -77,8 +76,8 @@ for dose in const_dose:
     counts = np.zeros((n_gen,ic50.shape[0]))
     tic=time.time()
     for sim_num in range(n_sims):
-#        counts_t, drug_curve = sim.var_fit_automaton(drugless_rates,
-        counts_t, drug_curve = sim.vectorized_abm(drugless_rates,
+        counts_t, drug_curve = sim.var_fit_automaton(drugless_rates,
+#        counts_t, drug_curve = sim.vectorized_abm(drugless_rates,
                                         ic50,
                                         n_gen=n_gen,  # Number of simulated generations
                                         mut_rate=mut_rate,  # probability of mutation per generation
@@ -94,9 +93,9 @@ for dose in const_dose:
                                         min_dose=min_dose,
                                         h_step=h_step,
                                         k_elim=k_elim,
-                                        k_abs=k_abs,
-                                        death_noise = death_noise,
-                                        mut_noise=mut_noise)
+                                        k_abs=k_abs)
+#                                        death_noise = death_noise,
+#                                        mut_noise=mut_noise)
         counts += counts_t
         
     toc=time.time()

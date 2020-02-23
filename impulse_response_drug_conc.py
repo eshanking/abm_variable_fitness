@@ -16,10 +16,10 @@ plot = False
 drug_log_scale = False
 counts_log_scale = False
 
-lower_thresh = 1000
+lower_thresh = 0
 upper_thresh = 2000
 
-n_sims = 1
+n_sims = 100
 
 # "real-world" parameters
 #k_elim = 0.007
@@ -38,8 +38,8 @@ death_rate = 0.15
 death_noise = 0.01
 mut_noise = 0.005
 
-u = sim.gen_impulses(1,n_gen)
-conv = sim.convolve_pharm(u,2000,k_elim=k_elim,k_abs=k_abs, max_dose=max_dose)
+#u = sim.gen_impulses(1,n_gen)
+#conv = sim.convolve_pharm(u,2000,k_elim=k_elim,k_abs=k_abs, max_dose=max_dose)
 curve_type = 'constant'
 
 drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
@@ -71,8 +71,8 @@ for sim_num in range(n_sims):
                                     lower_thresh = lower_thresh,
                                     upper_thresh = upper_thresh,
                                     const_dose = max_dose)
-    sim.plot_timecourse(counts_t,drug_curve,drug_log_scale=drug_log_scale,
-                    counts_log_scale=counts_log_scale)
+#    sim.plot_timecourse(counts_t,drug_curve,drug_log_scale=drug_log_scale,
+#                    counts_log_scale=counts_log_scale)
     counts += counts_t
         
 
