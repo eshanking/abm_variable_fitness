@@ -18,7 +18,7 @@ const_dose = np.array([0,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])
 #const_dose = np.array([0])
 mut_rate = 0.003
 death_rate = 0.15
-max_cells=10**5  # Max number of cells
+max_cells=10**6  # Max number of cells
 death_noise = 0.01
 mut_noise = 0.005
 

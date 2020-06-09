@@ -389,7 +389,9 @@ def vectorized_abm(drugless_rates,
 def plot_timecourse(counts, drug_curve,
                     fig_title = '',
                     drug_log_scale=False,
-                    counts_log_scale=False):
+                    counts_log_scale=False,
+                    normalize=False):
+    
     fig, ax = plt.subplots(figsize = (6,4))
 #    plt.rcParams.update({'font.size': 22})
     counts_total = np.sum(counts,axis=0)
@@ -503,7 +505,9 @@ def plot_timecourse(counts, drug_curve,
     ax2.tick_params(labelsize=18)
 #    plt.yticks(fontsize=18)
     ax2.set_title(fig_title,fontsize=20)
-    
+    if normalize:
+        counts = counts/np.max(counts)
+        
     for allele in range(counts.shape[1]):
         if allele in sorted_index_big:
             ax.plot(counts[:,allele],linewidth=3.0,label=str(int_to_binary(allele)))
@@ -521,14 +525,15 @@ def plot_timecourse(counts, drug_curve,
     ax.set_xlabel('Time',fontsize=20)
     ax.set_ylabel('Cells',fontsize=20)
     ax.tick_params(labelsize=20)
+    
     if counts_log_scale:
         ax.set_yscale('log')
         ax.set_ylim(1,5*10**5)
     else:
-        ax.set_yticks([0,20000,40000,60000,80000,100000])
-        ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
-                            '$8x10^{5}$','$10x10^{5}$'])
-        ax.set_ylim(0,100000)
+#        ax.set_yticks([0,20000,40000,60000,80000,100000])
+#        ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
+#                            '$8x10^{5}$','$10x10^{5}$'])
+        ax.set_ylim(0,np.max(counts))
 
 #    fig.tight_layout()
     plt.show()
