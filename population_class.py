@@ -1,3 +1,5 @@
+# TODO: check fitness landscape computation in abm model
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -28,13 +30,14 @@ class Population:
                  k_elim = 0.001,
                  k_abs = 0.07,
                  div_scale = 1,
+                 normalize = False,
                  n_sims = 1,
                  mode='ab',
-                 curve_type='const',
+                 curve_type='constant',
                  plot=True,
                  drug_log_scale = False,
                  counts_log_scale = False,
-                 normalize = False,
+                 constant_pop = False,
                  fig_title = '',
                  drug_curve = None):
                 
@@ -69,6 +72,7 @@ class Population:
         self.thresh = thresh # Threshold for hybrid model (not yet implemented)
         self.div_scale = div_scale # Scale the division rate to simulate different organisms
         self.n_sims = n_sims # number of simulations to average together in self.simulate
+        self.constant_pop = constant_pop
         
         # Data paths
         if drugless_path is None:
@@ -103,6 +107,7 @@ class Population:
         self.h_step = h_step # when to turn on heaviside function
         self.min_dose = min_dose 
         
+        # Generate drug dosage curves if one is not specified
         if drug_curve is None:
             self.drug_curve = self.gen_curves()
         else:
@@ -110,7 +115,7 @@ class Population:
         
         # Visualization parameters
         self.plot = plot
-        self.drug_log_scale = False
+        self.drug_log_scale = drug_log_scale
         self.counts_log_scale = counts_log_scale
         self.fig_title = fig_title
         self.normalize = normalize
@@ -158,6 +163,7 @@ class Population:
     #    print(str(trans_mat))
         return trans_mat
     
+    # compute fitness given a drug concentration
     def gen_fitness(self,allele,conc,drugless_rate,ic50):
         # input: allele (integer from 0 to 15)
         # conc: current drug concentration
@@ -179,7 +185,7 @@ class Population:
 ###############################################################################
     # Methods for generating drug curves
     
-    # Equation for a simple 2 compartment pharmacokinetic model
+    # Equation for a simple 1 compartment pharmacokinetic model
     def pharm_eqn(self,t,k_elim=0.01,k_abs=0.1,max_dose=1):
         conc = np.exp(-k_elim*t)-np.exp(-k_abs*t)
         t_max = np.log(k_elim/k_abs)/(k_elim-k_abs)
@@ -221,7 +227,8 @@ class Population:
     # generates drug concentration curves
     def gen_curves(self):
         curve = np.zeros(self.n_gen)
-        if self.curve_type == 'linear':
+        
+        if self.curve_type == 'linear': # aka ramp linearly till timestep defined by steepness
             for i in range(self.n_gen):
                 if i <= self.steepness:
                     slope = (self.max_dose-10**(-3))/self.steepness
@@ -231,14 +238,18 @@ class Population:
                     slope = (self.max_dose-10**(-3))/self.steepness
                     conc = slope*i+10**-3
                 curve[i]=conc
+                
         elif self.curve_type == 'constant':
             curve[:] = self.max_dose
+
         elif self.curve_type == 'heaviside':
             for i in range(self.n_gen):
                 if i <= self.h_step:
                     curve[i] = self.min_dose
                 else:
                     curve[i] = self.max_dose 
+        
+        # Two compartment pharmacokinetic model
         elif self.curve_type == 'pharm':
             t_max = np.log(self.k_elim/self.k_abs)/(self.k_elim-self.k_abs)
             for i in range(self.n_gen):
@@ -246,6 +257,8 @@ class Population:
                 conc = conc/(np.exp(-self.k_elim*t_max)-np.exp(-self.k_abs*t_max))
                 conc = conc*self.max_dose
                 curve[i] = conc
+        
+        # Pulsed convolves an impulse train with the 1-compartment model (models patient taking a maintenence dose)
         elif self.curve_type == 'pulsed':
             u = self.gen_impulses()
             curve = self.convolve_pharm(u)
@@ -255,49 +268,27 @@ class Population:
     def run_abm(self):
         
         n_allele = len(self.drugless_rates)
-    #    print(str(drugless_rates.shape))
+
         # Obtain transition matrix for mutations
         P = self.random_mutations( n_allele )
-       
-        
+
         # Keeps track of cell counts at each generation
         counts = np.zeros([self.n_gen, n_allele], dtype=int)
         # drug_curve = np.zeros(self.n_gen)
-    
-        # if init_counts is None:
-        #     counts[0] = 10*np.ones(n_allele)
-        # else:
-        #     counts[0] = init_counts
-        
+
         counts[0,:] = self.init_counts
     
         for mm in range(self.n_gen-1):
-            
-            # if curve_type == 'constant':
-            #     # dose is in uM
-            #     conc = const_dose
-            # elif curve_type == 'impulse-response':
-            #     if mm>pharm_impulse_response.shape[0]-1:
-            #         conc=0
-            #     else:
-            #         conc = pharm_impulse_response[mm]
-            # else:
-            #     conc = calc_conc(mm,curve_type,steepness=slope,max_dose=max_dose,
-            #                      h_step=h_step,
-            #                      min_dose=min_dose,
-            #                      K_elim=k_elim,
-            #                      K_abs=k_abs)
-            
-            # drug_curve[mm] = conc
-            
+            # Normalize to constant population
+                            
             conc = self.drug_curve[mm]
             
             fit_land = np.zeros(self.n_allele)
             
-    
+            # fitness of allele 0010 is not quantified in the dataset - set to zero
             for kk in range(self.n_allele):
                 if kk == 3:
-                    fit_land[kk] = 0
+                    fit_land[kk] = 0 # fitness of allele 0010 is not quantified in the dataset
                 elif kk < 3:
                     fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
                 elif kk > 3:
@@ -351,12 +342,13 @@ class Population:
                 daughter_counts[allele] -=n_mut
     
             counts[mm+1] += daughter_counts
-        # if plot:
-        #     print(str('here!'))
-        #     plot_timecourse(counts,drug_curve)
-    #        print('im here!')
-    #    return counts
-        # self.counts = counts
+            
+            # Normalize to constant population            
+            if self.constant_pop:
+                cur_size = np.sum(counts[mm+1])
+                counts[mm+1] = counts[mm+1]*self.init_counts[0]/cur_size
+                counts[mm+1] = np.floor(counts[mm+1])
+
         return counts   
 
     # Runs abm simulation n_sim times and averages results. Then sets self.counts to final result. Also quantifies survival number
@@ -463,5 +455,7 @@ class Population:
 # c = p1.run_abm()
 # p1.plot_timecourse()
 
-options = {'n_gen':100}
+options = {'n_gen':1000,'max_dose':1,'n_sims':10}
 p1 = Population(**options)
+c = p1.simulate()
+p1.plot_timecourse()
