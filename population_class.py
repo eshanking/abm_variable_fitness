@@ -39,7 +39,8 @@ class Population:
                  counts_log_scale = False,
                  constant_pop = False,
                  fig_title = '',
-                 drug_curve = None):
+                 drug_curve = None,
+                 v2=True):
                 
         # Evolutionary parameters
         
@@ -73,6 +74,7 @@ class Population:
         self.div_scale = div_scale # Scale the division rate to simulate different organisms
         self.n_sims = n_sims # number of simulations to average together in self.simulate
         self.constant_pop = constant_pop
+        self.v2 = v2
         
         # Data paths
         if drugless_path is None:
@@ -264,6 +266,7 @@ class Population:
             curve = self.convolve_pharm(u)
         return curve
 
+###############################################################################
     # Run one abm simulation (ignores n_sim)
     def run_abm(self):
         
@@ -315,7 +318,7 @@ class Population:
             div_rate = div_rate[surv_ind]
             cell_types = cell_types[surv_ind]
             n_cells = len(cell_types)
-    
+
             counts[mm+1] = np.bincount(cell_types, minlength=n_allele)
     
             #Divide and mutate cells
@@ -349,16 +352,110 @@ class Population:
                 counts[mm+1] = counts[mm+1]*self.init_counts[0]/cur_size
                 counts[mm+1] = np.floor(counts[mm+1])
 
-        return counts   
+        return counts
+    
+    def run_abm_v2(self):
+        
+        n_allele = len(self.drugless_rates)
+
+        # Obtain transition matrix for mutations
+        P = self.random_mutations( n_allele )
+
+        # Keeps track of cell counts at each generation
+        counts = np.zeros([self.n_gen, n_allele], dtype=int)
+        # drug_curve = np.zeros(self.n_gen)
+
+        counts[0,:] = self.init_counts
+    
+        for mm in range(self.n_gen-1):
+            # Normalize to constant population
+                            
+            conc = self.drug_curve[mm]
+            
+            fit_land = np.zeros(self.n_allele)
+            
+            # fitness of allele 0010 is not quantified in the dataset - set to zero
+            for kk in range(self.n_allele):
+                if kk == 3:
+                    fit_land[kk] = 0 # fitness of allele 0010 is not quantified in the dataset
+                elif kk < 3:
+                    fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+                elif kk > 3:
+                    fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+            
+            fit_land = fit_land*self.div_scale
+    
+            # Scale division rates based on carrying capacity
+            if self.carrying_cap:
+                division_scale = 1 / (1+(2*np.sum(counts[mm])/self.max_cells)**4)
+            else:
+                division_scale = 1
+    
+            if counts[mm].sum()>self.max_cells:
+                division_scale = 0
+            
+            fit_land = fit_land*division_scale
+            fit_land[fit_land>1] = 1
+            
+            counts[mm+1] = counts[mm]
+    
+            # Kill cells
+            
+            counts[mm+1] = counts[mm+1]-np.random.binomial(counts[mm],self.death_rate)
+    
+            # Divide cells
+            
+            divide = np.random.binomial(counts[mm+1],fit_land)
+            
+            # Mutate cells
+            
+            daughter_types = np.repeat( np.arange(n_allele) , divide )
+            daughter_counts = np.bincount( daughter_types , minlength=n_allele )
+    
+            # Mutate cells of each allele type
+            for allele in np.random.permutation(np.arange(n_allele)):
+                n_mut = np.random.binomial(daughter_counts[allele],self.mut_rate)
+    
+                mutations = np.random.choice(n_allele, size=n_mut, p=P[:,allele]).astype(np.uint8)
+    
+                # Add mutating cell to their final types
+                counts[mm+1] +=np.bincount( mutations , minlength=n_allele)
+                counts[:,3] =  0
+                # Substract mutating cells from that allele
+                daughter_counts[allele] -=n_mut
+    
+            counts[mm+1] += daughter_counts
+            
+            # Normalize to constant population            
+            if self.constant_pop:
+                cur_size = np.sum(counts[mm+1])
+                counts[mm+1] = counts[mm+1]*self.init_counts[0]/cur_size
+                counts[mm+1] = np.floor(counts[mm+1])
+
+        return counts
 
     # Runs abm simulation n_sim times and averages results. Then sets self.counts to final result. Also quantifies survival number
     def simulate(self):
         counts_t = np.zeros([self.n_gen,16])
+        counts = np.zeros([self.n_gen,16])
+        n_survive = 0
         for i in range(self.n_sims):
-            counts_t += self.run_abm()
-        counts_t = counts_t/self.n_sims
-        self.counts = counts_t
-        return counts_t
+            
+            if self.v2:
+                counts_t = self.run_abm_v2()
+            else:
+                counts_t = self.run_abm()
+                
+            if any(counts_t[self.n_gen-1,:]>0.1*self.max_cells):
+                n_survive+=1  
+                
+            counts+=counts_t
+                                                                                                      
+        counts = counts/self.n_sims
+        
+        self.counts = counts
+        
+        return counts, n_survive
 
     def plot_timecourse(self):
         
@@ -451,11 +548,11 @@ class Population:
 ###############################################################################
 # Testing
 
-# p1 = Population(curve_type='pulsed',n_gen=1000,n_impulse=5,k_elim=.01)
+p1 = Population(curve_type='pulsed',n_gen=1000,n_impulse=5,k_elim=.01)
 # c = p1.run_abm()
 # p1.plot_timecourse()
 
-options = {'n_gen':1000,'max_dose':1,'n_sims':10}
-p1 = Population(**options)
-c = p1.simulate()
-p1.plot_timecourse()
+# options = {'n_gen':1000,'max_dose':1,'n_sims':10}
+# p1 = Population(**options)
+# c = p1.simulate()
+# p1.plot_timecourse()
