@@ -101,11 +101,12 @@ class Experiment():
 # # e1.plot_barchart()
 
 
-options = {'n_gen':500,'v2':True,'death_rate':0.17}
+options = {'n_gen':1000,'v2':False}
 e1 = Experiment(population_options = options, 
-                   n_sims=10, 
-                   curve_types = ['constant','ramped','pharm'],
-                    max_doses = [1,40,100]
+                   n_sims=100, 
+                   curve_types = ['constant'],
+                    # max_doses = [1,40,100]
+                    max_doses = [1]
                     )
 e1.run_experiment()
 e1.plot_barchart()

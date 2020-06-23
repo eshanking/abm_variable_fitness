@@ -341,6 +341,7 @@ class Population:
                 #Add mutating cell to their final types
                 counts[mm+1] +=np.bincount( mutations , minlength=n_allele)
                 counts[:,3] =  0
+                
                 #Substract mutating cells from that allele
                 daughter_counts[allele] -=n_mut
     
@@ -405,7 +406,7 @@ class Population:
     
             # Divide cells
             
-            divide = np.random.binomial(counts[mm+1],fit_land)
+            divide = np.random.binomial(counts[mm+1],1-fit_land)
             
             # Mutate cells
             
@@ -548,11 +549,11 @@ class Population:
 ###############################################################################
 # Testing
 
-p1 = Population(curve_type='pulsed',n_gen=1000,n_impulse=5,k_elim=.01)
+p1 = Population(v2=False)
 # c = p1.run_abm()
 # p1.plot_timecourse()
 
 # options = {'n_gen':1000,'max_dose':1,'n_sims':10}
 # p1 = Population(**options)
-# c = p1.simulate()
+c = p1.simulate()
 # p1.plot_timecourse()
