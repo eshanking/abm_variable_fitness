@@ -40,7 +40,8 @@ class Population:
                  constant_pop = False,
                  fig_title = '',
                  drug_curve = None,
-                 v2=True):
+                 v2=True,
+                 debug=False):
                 
         # Evolutionary parameters
         
@@ -75,6 +76,7 @@ class Population:
         self.n_sims = n_sims # number of simulations to average together in self.simulate
         self.constant_pop = constant_pop
         self.v2 = v2
+        self.debug = debug
         
         # Data paths
         if drugless_path is None:
@@ -90,6 +92,10 @@ class Population:
         # load the data
         self.drugless_rates = self.load_fitness(self.drugless_path)
         self.ic50 = self.load_fitness(self.ic50_path)
+        
+        self.timestep_scale = max(self.drugless_rates)
+        
+        # self.timestep_scale = 1
         
         # determine number of alleles from data (not yet implemented)
         self.n_allele = self.drugless_rates.shape[0]
@@ -369,7 +375,10 @@ class Population:
         counts[0,:] = self.init_counts
     
         for mm in range(self.n_gen-1):
-            # Normalize to constant population
+            
+            if self.debug:
+                if np.mod(mm,10) == 0:
+                    print(str(mm))
                             
             conc = self.drug_curve[mm]
             
@@ -396,17 +405,22 @@ class Population:
                 division_scale = 0
             
             fit_land = fit_land*division_scale
-            fit_land[fit_land>1] = 1
+            
+            fit_land = fit_land/self.timestep_scale # ensures fitness is never greater than 1
+            death_rate = self.death_rate/self.timestep_scale # scales all other rates proportionally
+            mut_rate = self.mut_rate/self.timestep_scale
+            
+            # fit_land[fit_land>1] = 1
             
             counts[mm+1] = counts[mm]
     
             # Kill cells
             
-            counts[mm+1] = counts[mm+1]-np.random.binomial(counts[mm],self.death_rate)
+            counts[mm+1] = counts[mm+1]-np.random.binomial(counts[mm],death_rate)
     
             # Divide cells
             
-            divide = np.random.binomial(counts[mm+1],1-fit_land)
+            divide = np.random.binomial(counts[mm+1],fit_land)
             
             # Mutate cells
             
@@ -415,7 +429,7 @@ class Population:
     
             # Mutate cells of each allele type
             for allele in np.random.permutation(np.arange(n_allele)):
-                n_mut = np.random.binomial(daughter_counts[allele],self.mut_rate)
+                n_mut = np.random.binomial(daughter_counts[allele],mut_rate)
     
                 mutations = np.random.choice(n_allele, size=n_mut, p=P[:,allele]).astype(np.uint8)
     
@@ -549,11 +563,11 @@ class Population:
 ###############################################################################
 # Testing
 
-p1 = Population(v2=False)
+# p1 = Population(v2=False)
 # c = p1.run_abm()
 # p1.plot_timecourse()
 
 # options = {'n_gen':1000,'max_dose':1,'n_sims':10}
 # p1 = Population(**options)
-c = p1.simulate()
+# c = p1.simulate()
 # p1.plot_timecourse()
