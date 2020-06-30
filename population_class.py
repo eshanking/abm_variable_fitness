@@ -15,7 +15,7 @@ class Population:
                  n_gen=1000,
                  max_cells = 10**6,
                  init_counts = None,
-                 steepness = 500,
+                 steepness = None,
                  max_dose = 1,
                  n_impulse = 2,
                  pad_right = False,
@@ -85,7 +85,7 @@ class Population:
             self.drugless_path = drugless_path
             
         if ic50_path is None:
-            self.ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
+            self.ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
         else:
             self.ic50_path = ic50_path
         
@@ -108,7 +108,10 @@ class Population:
         self.k_abs = k_abs 
         self.pad_right = pad_right
         
-        self.steepness = steepness # Ramped parameter (what time step to reach maximum dose, determines slope)
+        if steepness is None:
+            self.steepness = self.n_gen # Ramped parameter (what time step to reach maximum dose, determines slope)
+        else:
+            self.steepness = steepness
         
         self.max_dose = max_dose
         self.n_impulse = n_impulse # number of impulses for a pulsed dose
@@ -189,6 +192,15 @@ class Population:
             fitness = log_eqn(drugless_rate[allele],ic50[allele])
     #    fitness = 0
         return fitness
+    
+    def gen_fit_land(self,conc):
+        
+        fit_land = np.zeros(16)
+        
+        for allele in range(16):
+            fit_land[allele] = self.gen_fitness(allele,conc,self.drugless_rates,self.ic50)
+        
+        return fit_land
     
 ###############################################################################
     # Methods for generating drug curves
@@ -406,11 +418,12 @@ class Population:
             
             fit_land = fit_land*division_scale
             
-            fit_land = fit_land/self.timestep_scale # ensures fitness is never greater than 1
-            death_rate = self.death_rate/self.timestep_scale # scales all other rates proportionally
-            mut_rate = self.mut_rate/self.timestep_scale
+            # fit_land = fit_land/self.timestep_scale # ensures fitness is never greater than 1
+            # death_rate = self.death_rate/self.timestep_scale # scales all other rates proportionally
+            # mut_rate = self.mut_rate/self.timestep_scale
             
-            # fit_land[fit_land>1] = 1
+            death_rate = self.death_rate
+            mut_rate = self.mut_rate
             
             counts[mm+1] = counts[mm]
     
@@ -420,7 +433,7 @@ class Population:
     
             # Divide cells
             
-            divide = np.random.binomial(counts[mm+1],fit_land)
+            divide = np.random.binomial((counts[mm+1]*self.timestep_scale).astype(int),fit_land/self.timestep_scale)
             
             # Mutate cells
             
@@ -472,13 +485,15 @@ class Population:
         
         return counts, n_survive
 
-    def plot_timecourse(self):
+    def plot_timecourse(self,counts_t=None):
         
-        if (self.counts == 0).all():
+        if (self.counts == 0).all() and counts_t==None:
             print('No data to plot!')
             return
-        else:
+        elif counts_t == None:
             counts = self.counts
+        else:
+            counts = counts_t # an input other than self overrides self
             
         fig, ax = plt.subplots(figsize = (6,4))
     #    plt.rcParams.update({'font.size': 22})
@@ -563,8 +578,8 @@ class Population:
 ###############################################################################
 # Testing
 
-# p1 = Population(v2=False)
-# c = p1.run_abm()
+p1 = Population(v2=True)
+c = p1.simulate()
 # p1.plot_timecourse()
 
 # options = {'n_gen':1000,'max_dose':1,'n_sims':10}

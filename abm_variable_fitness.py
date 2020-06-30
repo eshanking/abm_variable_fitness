@@ -542,12 +542,12 @@ def plot_timecourse(counts, drug_curve,
 def plot_fitness_curves(fig_title=''):
     
     drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
-    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\cycloguanil_ic50.csv"
+    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
 #    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
     drugless_rates = load_fitness(drugless_path)
     ic50 = load_fitness(ic50_path)
     
-    fig, ax = plt.subplots(figsize = (8,5))
+    fig, ax = plt.subplots(figsize = (8,6))
     
     powers = np.linspace(-3,5,20)
     conc = np.power(10*np.ones(powers.shape[0]),powers)
@@ -588,7 +588,7 @@ def plot_fitness_curves(fig_title=''):
     return ax
 
 def plot_2d_fitness(cmap='magma_r'):
-    curve_path = 'C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\cyc_2d_fitness_curve.csv'
+    curve_path = 'C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyr_2d_fitness_curve.csv'
     
     curve = pd.read_csv(curve_path,header=None)
     curve = np.array(curve)

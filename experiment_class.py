@@ -1,7 +1,8 @@
 from population_class import Population
 import numpy as np
 import matplotlib.pyplot as plt
-import time
+# import time
+from tqdm import tqdm
 
 class Experiment():
     # Initializer
@@ -48,6 +49,8 @@ class Experiment():
         n_doses = len(self.max_doses)
         n_curves = len(self.curve_types)
         
+        # with tqdm(total = n_curves*n_doses) as pbar:
+        pbar = tqdm(total = n_curves*n_doses)
         for curve_number in range(n_curves):
             for dose_number in range(n_doses):
                 exp_num = curve_number*n_doses + dose_number
@@ -55,6 +58,8 @@ class Experiment():
                 c,n_survive_t = pop.simulate()
                 pop.plot_timecourse()
                 self.n_survive[curve_number,dose_number] = n_survive_t
+                pbar.update()
+        pbar.close()
         self.perc_survive = 100*self.n_survive/self.n_sims
     
     def plot_barchart(self):
@@ -100,13 +105,14 @@ class Experiment():
 # print(str(t_elapsed))
 # # e1.plot_barchart()
 
-
-options = {'n_gen':1000,'v2':False}
+options = {'n_gen':2000,'v2':True}
 e1 = Experiment(population_options = options, 
-                   n_sims=100, 
-                   curve_types = ['constant'],
+                   n_sims=10, 
+                   # curve_types = ['constant','linear','pharm'],
                     # max_doses = [1,40,100]
-                    max_doses = [1]
+                    curve_types = ['constant'],
+                    max_doses = [0]
+                    # max_doses = [1]
                     )
 e1.run_experiment()
 e1.plot_barchart()
