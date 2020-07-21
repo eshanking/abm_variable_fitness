@@ -41,6 +41,7 @@ class Population:
                  fig_title = '',
                  drug_curve = None,
                  v2=True,
+                 prob_drop=0,
                  debug=False):
                 
         # Evolutionary parameters
@@ -66,6 +67,8 @@ class Population:
         
         # Timecouse (set after running self.simulate)
         self.counts = np.zeros([self.n_gen,16])
+        self.counts_extinct = np.zeros([self.n_gen,16])
+        self.counts_survive = np.zeros([self.n_gen,16])
                                             
         # Model parameters
         
@@ -94,8 +97,7 @@ class Population:
         self.ic50 = self.load_fitness(self.ic50_path)
         
         self.timestep_scale = max(self.drugless_rates)
-        
-        # self.timestep_scale = 1
+
         
         # determine number of alleles from data (not yet implemented)
         self.n_allele = self.drugless_rates.shape[0]
@@ -115,6 +117,7 @@ class Population:
         
         self.max_dose = max_dose
         self.n_impulse = n_impulse # number of impulses for a pulsed dose
+        self.prob_drop = prob_drop # probability of dropping a dose
         self.h_step = h_step # when to turn on heaviside function
         self.min_dose = min_dose 
         
@@ -125,9 +128,9 @@ class Population:
             self.drug_curve = drug_curve
         
         # Visualization parameters
-        self.plot = plot
-        self.drug_log_scale = drug_log_scale
-        self.counts_log_scale = counts_log_scale
+        self.plot = plot # boolean
+        self.drug_log_scale = drug_log_scale # plot drugs on log scale
+        self.counts_log_scale = counts_log_scale # plot counts on log scale
         self.fig_title = fig_title
         self.normalize = normalize
         self.counts_log_scale = counts_log_scale
@@ -213,7 +216,29 @@ class Population:
         conc = conc*max_dose
         return conc
     
+    # Old convolution algorithm (very slow)
     # Convolve the arbitrary curve u with the pharmacokinetic model
+    # def convolve_pharm(self,u):
+    #                    # k_elim=0.01,
+    #                    # k_abs=0.1,
+    #                    # max_dose=1):
+    #     k_elim = self.k_elim
+    #     k_abs = self.k_abs
+    #     max_dose = self.max_dose
+        
+    #     # k_lim and k_abs are the absorption and elimination rate constants for the pharmacokinetic model
+    #     # t_max is the max length of the output curve
+    #     # algorithm is at best O(n^2)...
+        
+    #     conv = np.zeros(self.n_gen)
+    #     for t in range(self.n_gen):
+    #         for tau in range(self.n_gen):
+    #             if t-tau >= 0 and t-tau<u.shape[0]:
+    #                 conv[t] += u[t-tau]*self.pharm_eqn(tau,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
+    #     # conv = np.convolve()
+    #     return conv
+
+    # New convolution method (much faster with numpy)
     def convolve_pharm(self,u):
                        # k_elim=0.01,
                        # k_abs=0.1,
@@ -225,11 +250,20 @@ class Population:
         # k_lim and k_abs are the absorption and elimination rate constants for the pharmacokinetic model
         # t_max is the max length of the output curve
         # algorithm is at best O(n^2)...
-        conv = np.zeros(self.n_gen)
-        for t in range(self.n_gen):
-            for tau in range(self.n_gen):
-                if t-tau >= 0 and t-tau<u.shape[0]:
-                    conv[t] += u[t-tau]*self.pharm_eqn(tau,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
+        
+        # conv = np.zeros(self.n_gen)
+        # for t in range(self.n_gen):
+        #     for tau in range(self.n_gen):
+        #         if t-tau >= 0 and t-tau<u.shape[0]:
+        #             conv[t] += u[t-tau]*self.pharm_eqn(tau,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
+        
+        pharm = np.zeros(self.n_gen)
+        for i in range(self.n_gen):
+            pharm[i] = self.pharm_eqn(i,k_elim=k_elim,k_abs=k_abs,max_dose=max_dose)
+        
+        # using FFT turns out to be much faster for convolutions!
+        conv = np.convolve(u,pharm)
+        conv = conv[0:self.n_gen]
         return conv
     
     # Generates an impulse train to input to convolve_pharm()
@@ -240,6 +274,12 @@ class Population:
             impulse_indx = np.arange(self.n_impulse)*gap
         else:
             impulse_indx = np.arange(self.n_impulse+1)*gap-1
+            
+        # eliminate random doses
+        keep_indx = np.random.rand(len(impulse_indx)) > self.prob_drop
+        
+        impulse_indx = impulse_indx[keep_indx]
+        
         impulse_indx = impulse_indx.astype(int)
         u[impulse_indx]=1 
         return u
@@ -464,8 +504,12 @@ class Population:
 
     # Runs abm simulation n_sim times and averages results. Then sets self.counts to final result. Also quantifies survival number
     def simulate(self):
+        
         counts_t = np.zeros([self.n_gen,16])
         counts = np.zeros([self.n_gen,16])
+        counts_survive = np.zeros([self.n_gen,16])
+        counts_extinct = np.zeros([self.n_gen,16])
+        
         n_survive = 0
         for i in range(self.n_sims):
             
@@ -475,13 +519,20 @@ class Population:
                 counts_t = self.run_abm()
                 
             if any(counts_t[self.n_gen-1,:]>0.1*self.max_cells):
-                n_survive+=1  
+                n_survive+=1
+                counts_survive += counts_t
+            # else:
+                # counts_extinct += counts_t
                 
             counts+=counts_t
                                                                                                       
         counts = counts/self.n_sims
+        counts_survive = counts_survive/n_survive
+        # counts_extinct = counts_extinct/(self.n_sims-n_survive)
         
         self.counts = counts
+        self.counts_survive = counts_survive
+        self.counts_extinct = counts_extinct
         
         return counts, n_survive
 
@@ -490,7 +541,7 @@ class Population:
         if (self.counts == 0).all() and counts_t==None:
             print('No data to plot!')
             return
-        elif counts_t == None:
+        elif counts_t is None:
             counts = self.counts
         else:
             counts = counts_t # an input other than self overrides self
@@ -578,8 +629,8 @@ class Population:
 ###############################################################################
 # Testing
 
-p1 = Population(v2=True)
-c = p1.simulate()
+# p1 = Population(v2=True)
+# c = p1.simulate()
 # p1.plot_timecourse()
 
 # options = {'n_gen':1000,'max_dose':1,'n_sims':10}
