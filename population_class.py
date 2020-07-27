@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from cycler import cycler
 import seaborn as sns
+import scipy as sp
 
 class Population:
 ###############################################################################    
@@ -287,7 +288,7 @@ class Population:
     # generates drug concentration curves
     def gen_curves(self):
         curve = np.zeros(self.n_gen)
-        
+        # print('hi')
         if self.curve_type == 'linear': # aka ramp linearly till timestep defined by steepness
             for i in range(self.n_gen):
                 if i <= self.steepness:
@@ -301,6 +302,7 @@ class Population:
                 
         elif self.curve_type == 'constant':
             curve[:] = self.max_dose
+            # print('here')
 
         elif self.curve_type == 'heaviside':
             for i in range(self.n_gen):
@@ -625,6 +627,22 @@ class Population:
     #    fig.tight_layout()
         plt.show()
         return fig,ax
+    
+    # Calculate the shannon-gibbs entropy (normalized population size)
+    def entropy(self,counts=None):
+        if counts is None:
+            counts = self.counts
+
+        k = np.sum(counts,1)
+        entropy = np.zeros(counts.shape[0])
+        counts_t = np.zeros(counts.shape)
+        for i in range(counts.shape[0]):
+            counts_t[i,:] = np.divide(counts[i,:],k[i])
+            # counts_log = np.log(counts_t[i,:]+1)
+            # entropy[i] = np.dot(counts_t[i,:],counts_log)
+            entropy[i] = sp.stats.entropy(counts_t[i,:])
+
+        return entropy
     
 ###############################################################################
 # Testing

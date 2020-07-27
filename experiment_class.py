@@ -1,7 +1,8 @@
 from population_class import Population
+from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
-from tqdm import tqdm
+import pandas as pd
 import warnings
 
 class Experiment():
@@ -18,7 +19,10 @@ class Experiment():
                  population_options = {}):
         
         allowed_types = ['linear', 'constant', 'heaviside', 'pharm', 'pulsed']
-        allowed_experiments = ['inoculant-survival','dose-survival','drug-regimen']
+        allowed_experiments = ['inoculant-survival',
+                               'dose-survival',
+                               'drug-regimen',
+                               'dose-entropy']
         
         if curve_types is not None:
             if not all(elem in allowed_types for elem in curve_types):
@@ -26,7 +30,7 @@ class Experiment():
                 
         if experiment_type is not None:
             if experiment_type not in allowed_experiments:
-                raise Exception('Experiment type not recognized.\nAllowable types are inoculant-survival and dose-survival.')
+                raise Exception('Experiment type not recognized.\nAllowable types are inoculant-survival, dose-survival, drug-regimen, and dose-entropy.')
             
         # Curve type: linear, constant, heaviside, pharm, pulsed
         if curve_types is None:
@@ -112,6 +116,12 @@ class Experiment():
                                                    **self.population_options))
             self.n_survive = np.zeros([len(self.populations)])
             
+        elif self.experiment_type == 'dose-entropy':
+            for dose in self.max_doses:
+                self.populations.append(Population(max_dose = dose,
+                                                   curve_type=self.curve_types[0]))
+            self.entropy_results = pd.DataFrame(columns=[]) # will become a dataframe later
+            
         # self.n_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
         # self.perc_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
 ###############################################################################
@@ -137,7 +147,7 @@ class Experiment():
                     pop.plot_timecourse()
                     self.n_survive[curve_number,dose_number] = n_survive_t
                     pbar.update()
-                    
+            self.perc_survive = 100*self.n_survive/self.n_sims                    
         elif self.experiment_type == 'inoculant-survival':
             pbar = tqdm(total = n_curves*n_inoc) # progress bar
             for curve_number in range(n_curves):
@@ -149,7 +159,8 @@ class Experiment():
                     pop.plot_timecourse()
                     self.n_survive[curve_number,inoc_num] = n_survive_t
                     pbar.update()           
-        
+            self.perc_survive = 100*self.n_survive/self.n_sims
+            
         elif self.experiment_type == 'drug-regimen':
             pbar = tqdm(total=len(self.populations))
             kk=0
@@ -162,9 +173,69 @@ class Experiment():
                     self.n_survive[kk] += n_survive
                 kk+=1
                 pbar.update()
+                self.perc_survive = 100*self.n_survive/self.n_sims
+            
+        elif self.experiment_type == 'dose-entropy':
+            pbar = tqdm(total=len(self.populations)*self.n_sims)
+            e_survived = []
+            e_died = []
+            for p in self.populations:
+                
+                for i in range(self.n_sims):
+                    c,n_survive = p.simulate()
+                    # e = max(p.entropy()) # compute max entropy
+                    e_t = p.entropy()
+                    e = max(e_t)
+                    # e=1
+                    # p.plot_timecourse()
+                    
+                    # fig,ax = plt.subplots()
+                    # ax.plot(e_t)
+                    # ax.set_xlabel('Time',fontsize=15)
+                    # ax.set_ylabel('Entropy', fontsize=15)
+                    # ax.tick_params(labelsize = 10)
+                    # ax.set_xlim(0,100)
+                    
+                    
+                    if n_survive == 1:
+                        survive = 'survived' # survived
+                        e_survived.append(e_t)
+                    else:
+                        survive = 'extinct' # died
+                        e_died.append(e_t)      
+                        
+                    d = {'dose':[p.max_dose],
+                         'survive condition':[survive],
+                         'max entropy':[e]}
+                    
+                    entropy_results_t = pd.DataFrame(d)
+                    self.entropy_results = self.entropy_results.append(entropy_results_t)
+                    pbar.update()
+                    
+                fig,ax=plt.subplots()
+                # print('here')
+                for i in range(len(e_survived)):
+                    e_t = e_survived[i]
+                    ax.plot(e_t[0:50],color ='red',label='survived')
+                for i in range(len(e_died)):
+                    e_t = e_died[i]
+                    ax.plot(e_t[0:50],color ='blue',label='died')
+                
+                ax.set_xlabel('Time',fontsize=15)
+                ax.set_ylabel('Entropy', fontsize=15)
+                ax.tick_params(labelsize = 10)
+                ax.set_xlim(0,50)
+                
+                ax.legend()
+                handles, labels = ax.get_legend_handles_labels()
+                labels, ids = np.unique(labels, return_index=True)
+                handles = [handles[i] for i in ids]
+                ax.legend(handles, labels, loc='best')
+                # ax.legend(newHandles, newLabels)
+                # ax.legend()
                 
         pbar.close() # close progress bar
-        self.perc_survive = 100*self.n_survive/self.n_sims
+
 
     # Plot final results in a bar chart
     def plot_barchart(self):
@@ -233,43 +304,6 @@ class Experiment():
 ###############################################################################
 # Testing
 
-# options = {'n_gen':1000,'v2':False}
-# # e1 = Experiment(population_options=options,
-# #                 curve_types=['constant','linear','pharm'],
-# #                 max_doses = [1,10,100,500],
-# #                 n_sims = 10)
-# e1 = Experiment(population_options = options,n_sims=10)
-
-# t0 = time.perf_counter()
-# e1.run_experiment()
-# t_elapsed = time.perf_counter() - t0
-# print(str(t_elapsed))
-# # e1.plot_barchart()
-
-# options = {'n_gen':2000,'v2':True}
-# e1 = Experiment(population_options = options, 
-#                    n_sims=10, 
-#                    # curve_types = ['constant','linear','pharm'],
-#                     # max_doses = [1,40,100]
-#                     curve_types = ['constant'],
-#                     max_doses = [0]
-#                     # max_doses = [1]
-#                     )
-# e1.run_experiment()
-# e1.plot_barchart()
-
-# e1 = Experiment()
-
-# experiment_type = 'inoculant-survival'
-# options = {'n_gen':1000,'v2':True,'max_dose':140,'max_cells':10**7}
-# inoculants = [10**3,10**4,10**5,10**6]
-# curve_types=['constant','linear','pharm']
-# n_sims = 20
-
-# e = Experiment(experiment_type = experiment_type,
-#                inoculants=inoculants,
-#                curve_types=curve_types,
-#                n_sims=n_sims,
-#                population_options=options)
-# e.run_experiment()
-# e.plot_barchart()
+# max_doses = [1,10,50]
+# experiment_type = 'dose-entropy'
+# e1 = Experiment(max_doses=max_doses,experiment_type=experiment_type,n_sims=10)
