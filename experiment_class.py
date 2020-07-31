@@ -3,7 +3,9 @@ from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import seaborn as sns
 import warnings
+import os
 
 class Experiment():
     
@@ -16,13 +18,15 @@ class Experiment():
                  experiment_type = None,
                  prob_drops = None,
                  n_impulse=1,
-                 population_options = {}):
+                 population_options = {},
+                 slopes=None):
         
         allowed_types = ['linear', 'constant', 'heaviside', 'pharm', 'pulsed']
         allowed_experiments = ['inoculant-survival',
                                'dose-survival',
                                'drug-regimen',
-                               'dose-entropy']
+                               'dose-entropy',
+                               'rate-survival']
         
         if curve_types is not None:
             if not all(elem in allowed_types for elem in curve_types):
@@ -62,14 +66,14 @@ class Experiment():
         else:
             self.experiment_type = experiment_type
         
-        if experiment_type == 'dose-survival' and len(inoculants) > 1:
-            raise Exception('The experiment type is set to dose-survival (default), but more than one inoculant is given.')
-        elif experiment_type == 'inoculant-survival' and len(self.max_doses) > 1:
-            # print('here')
-            raise Exception('The experiment type is set to inoculant-survival, but more than one max dose is given.')
+        # if experiment_type == 'dose-survival' and len(inoculants) > 1:
+        #     raise Exception('The experiment type is set to dose-survival (default), but more than one inoculant is given.')
+        # elif experiment_type == 'inoculant-survival' and len(self.max_doses) > 1:
+        #     # print('here')
+        #     raise Exception('The experiment type is set to inoculant-survival, but more than one max dose is given.')
         
-        if experiment_type == 'inoculant-survival' and inoculants is None:
-            raise Exception('The experiment type is set to inoculant-survival, but no inoculants are given.')
+        # if experiment_type == 'inoculant-survival' and inoculants is None:
+        #     raise Exception('The experiment type is set to inoculant-survival, but no inoculants are given.')
         
         if self.experiment_type == 'dose-survival':
             for curve_type in self.curve_types:
@@ -122,6 +126,15 @@ class Experiment():
                                                    curve_type=self.curve_types[0]))
             self.entropy_results = pd.DataFrame(columns=[]) # will become a dataframe later
             
+        elif self.experiment_type == 'rate-survival':
+            self.slopes = slopes
+            for slope in self.slopes:
+                self.populations.append(Population(max_dose=self.max_doses[0],
+                                                    slope=slope,
+                                                    curve_type='linear',
+                                                    n_sims=self.n_sims,
+                                                    **self.population_options))
+            self.rate_survival_results = pd.DataFrame(columns=[])
         # self.n_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
         # self.perc_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
 ###############################################################################
@@ -147,7 +160,8 @@ class Experiment():
                     pop.plot_timecourse()
                     self.n_survive[curve_number,dose_number] = n_survive_t
                     pbar.update()
-            self.perc_survive = 100*self.n_survive/self.n_sims                    
+            self.perc_survive = 100*self.n_survive/self.n_sims   
+                 
         elif self.experiment_type == 'inoculant-survival':
             pbar = tqdm(total = n_curves*n_inoc) # progress bar
             for curve_number in range(n_curves):
@@ -231,8 +245,23 @@ class Experiment():
                 labels, ids = np.unique(labels, return_index=True)
                 handles = [handles[i] for i in ids]
                 ax.legend(handles, labels, loc='best')
-                # ax.legend(newHandles, newLabels)
-                # ax.legend()
+        
+        elif self.experiment_type == 'rate-survival':
+            pbar = tqdm(total=len(self.populations))
+            
+            for p in self.populations:
+                c,n_survive = p.simulate()
+                p.plot_entropy = False
+                p.plot_timecourse()
+                perc_survive = 100*n_survive/p.n_sims
+                d = {'slope':[p.slope],
+                    '% survival':[perc_survive]}
+                    # 'max entropy':[e]}
+                    
+                results_t = pd.DataFrame(d)
+                self.rate_survival_results = self.rate_survival_results.append(results_t)
+                pbar.update()
+    
                 
         pbar.close() # close progress bar
 
@@ -299,7 +328,19 @@ class Experiment():
             ax.set_ylabel('Percent survival', fontsize=15)
             ax.tick_params(labelsize = 15)
             ax.set_ylim(0,100)
-
+        elif self.experiment_type == 'rate-survival':
+            fig,ax = plt.subplots()
+            data = self.rate_survival_results
+            # data.reindex(index=data.index[::-1])
+            # sns.swarmplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,color='black')
+            # sns.boxplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,palette='Set2')
+            sns.barplot(x='slope',y='% survival',data = data,palette='Set2')
+            ax.set_xlabel('Slope (uM/time)')
+            l,r = ax.get_xlim()
+            ax.set_xlim(r,l)
+            # path = "C:\Users\Eshan\Documents\python scripts\theory division\abm_variable_fitness\figures\rate_survival_07312020"
+            # path = os.path.normpath(path)
+            plt.savefig("C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\figures\\rate_survival_07312020\\barchart.svg")
         return
 ###############################################################################
 # Testing

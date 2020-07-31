@@ -11,39 +11,44 @@ class Population:
 ###############################################################################    
     # Initializer
     def __init__(self,
-                 drugless_path = None,
-                 ic50_path = None,
-                 n_gen=1000,
-                 max_cells = 10**6,
-                 init_counts = None,
-                 steepness = None,
-                 max_dose = 1,
-                 n_impulse = 2,
-                 pad_right = False,
-                 h_step = 500,
-                 min_dose = 0,
-                 mut_rate = 0.01,
-                 death_rate = 0.15,
-                 death_noise = 0.01,
-                 mut_noise = 0.005,
                  carrying_cap = True,
-                 thresh = 5000,
-                 k_elim = 0.001,
-                 k_abs = 0.07,
-                 div_scale = 1,
-                 normalize = False,
-                 n_sims = 1,
-                 mode='ab',
                  curve_type='constant',
-                 plot=True,
-                 drug_log_scale = False,
                  counts_log_scale = False,
                  constant_pop = False,
-                 fig_title = '',
+                 drugless_path = None,
+                 death_rate = 0.15,
+                 death_noise = 0.01,
+                 div_scale = 1,
+                 drug_log_scale = False,
                  drug_curve = None,
-                 v2=True,
+                 debug=False,
+                 entropy_lim = None,
+                 fig_title = '',
+                 h_step = 500,
+                 ic50_path = None,
+                 init_counts = None,
+                 k_elim = 0.001,
+                 k_abs = 0.07,
+                 min_dose = 0,
+                 mut_rate = 0.01,
+                 max_cells = 10**6,
+                 max_dose = 1,
+                 mut_noise = 0.005,
+                 mode='ab',
+                 n_gen=1000,
+                 n_impulse = 2,
+                 normalize = False,
+                 n_sims = 1,
+                 pad_right = False,
+                 plot=True,
+                 plot_entropy = True,
                  prob_drop=0,
-                 debug=False):
+                 slope = None,
+                 thresh = 5000,
+                 v2=True,
+                 x_lim = None,
+                 y_lim = None
+                 ):
                 
         # Evolutionary parameters
         
@@ -110,13 +115,14 @@ class Population:
         self.k_elim = k_elim
         self.k_abs = k_abs 
         self.pad_right = pad_right
-        
-        if steepness is None:
-            self.steepness = self.n_gen # Ramped parameter (what time step to reach maximum dose, determines slope)
-        else:
-            self.steepness = steepness
-        
         self.max_dose = max_dose
+        
+        if slope is None:
+            self.slope = self.max_dose/self.n_gen # Ramped parameter (what time step to reach maximum dose, determines slope)
+        else:
+            self.slope = slope
+        
+
         self.n_impulse = n_impulse # number of impulses for a pulsed dose
         self.prob_drop = prob_drop # probability of dropping a dose
         self.h_step = h_step # when to turn on heaviside function
@@ -130,11 +136,18 @@ class Population:
         
         # Visualization parameters
         self.plot = plot # boolean
+        self.plot_entropy = plot_entropy
         self.drug_log_scale = drug_log_scale # plot drugs on log scale
         self.counts_log_scale = counts_log_scale # plot counts on log scale
         self.fig_title = fig_title
         self.normalize = normalize
         self.counts_log_scale = counts_log_scale
+        if x_lim is None:
+            self.x_lim = n_gen
+        else:
+           self.x_lim = x_lim 
+        self.y_lim = y_lim
+        self.entropy_lim = entropy_lim
 ###############################################################################       
     
     # Load data
@@ -290,14 +303,23 @@ class Population:
         curve = np.zeros(self.n_gen)
         # print('hi')
         if self.curve_type == 'linear': # aka ramp linearly till timestep defined by steepness
+            # cur_dose = 0
             for i in range(self.n_gen):
-                if i <= self.steepness:
-                    slope = (self.max_dose-10**(-3))/self.steepness
-                    conc = slope*i+10**-3
-                else:
-                    # step = self.steepness
-                    slope = (self.max_dose-10**(-3))/self.steepness
-                    conc = slope*i+10**-3
+                # if i <= self.steepness:
+                #     slope = (self.max_dose-10**(-3))/self.steepness
+                #     conc = slope*i+10**-3
+                # else:
+                #     # step = self.steepness
+                #     slope = (self.max_dose-10**(-3))/self.steepness
+                # if cur_dose < self.max_dose:
+                conc = self.slope*i
+                
+                if conc > self.max_dose:
+                    conc=self.max_dose
+                # else:
+                #     conc = self.max_dose
+                # cur_dose = conc
+                    # conc = slope*i+10**-3
                 curve[i]=conc
                 
         elif self.curve_type == 'constant':
@@ -523,14 +545,24 @@ class Population:
             if any(counts_t[self.n_gen-1,:]>0.1*self.max_cells):
                 n_survive+=1
                 counts_survive += counts_t
-            # else:
-                # counts_extinct += counts_t
+                if self.plot is True:
+                    title_t = 'Dose = ' + str(self.max_dose) + ' uM, survived'
+                    self.plot_timecourse(counts_t = counts_t,
+                                         title_t = title_t)
+            else:
+                counts_extinct += counts_t
+                if self.plot is True:
+                    title_t = 'Dose = ' + str(self.max_dose) + ' , extinct'
+                    self.plot_timecourse(counts_t = counts_t,
+                                         title_t = title_t)           
+           
                 
             counts+=counts_t
                                                                                                       
         counts = counts/self.n_sims
         counts_survive = counts_survive/n_survive
-        # counts_extinct = counts_extinct/(self.n_sims-n_survive)
+        if  (self.n_sims - n_survive) > 0:
+            counts_extinct = counts_extinct/(self.n_sims-n_survive)
         
         self.counts = counts
         self.counts_survive = counts_survive
@@ -538,18 +570,130 @@ class Population:
         
         return counts, n_survive
 
-    def plot_timecourse(self,counts_t=None):
+    # def plot_timecourse(self,counts_t=None,title_t=None):
         
-        if (self.counts == 0).all() and counts_t==None:
+    #     if (self.counts == 0).all() and counts_t is None:
+    #         print('No data to plot!')
+    #         return
+    #     elif counts_t is None:
+    #         counts = self.counts
+    #     else:
+    #         counts = counts_t # an input other than self overrides self
+    #     if title_t is not None:
+    #         title = title_t
+    #     else:
+    #         title = self.fig_title    
+            
+    #     fig, ax = plt.subplots(figsize = (6,4))
+    # #    plt.rcParams.update({'font.size': 22})
+    #     counts_total = np.sum(counts,axis=0)
+        
+    #     sorted_index = counts_total.argsort()
+    #     sorted_index_big = sorted_index[8:]
+        
+    #     colors = sns.color_palette('bright')
+    #     colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
+    #     # shuffle colors
+
+    #     colors[[14,15]] = colors[[15,14]]
+        
+    #     cc = (cycler(color=colors) + 
+    #           cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
+    #                             '--','--','--','--','--','--','--']))
+        
+    #     ax.set_prop_cycle(cc)
+        
+    #     ax2 = ax.twinx()
+
+    #     color = [0.5,0.5,0.5]
+    #     ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
+        
+    #     if self.drug_log_scale:
+    #         if all(self.drug_curve>0):
+    #             drug_curve = np.log10(self.drug_curve)
+    #         yticks = np.log10([10**-4,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])    
+    #         ax2.set_yticks(yticks)
+    #         ax2.set_yticklabels(['0','$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
+    #                          '$10^1$','$10^2$','$10^3$'])
+    #         ax2.set_ylim(-4,3)
+    #     else:
+    #         drug_curve = self.drug_curve
+    #         ax2.set_ylim(0,1.1*max(drug_curve))
+    
+    # #    ax2.plot(drug_curve, color=color, linewidth=3.0, linestyle = 'dashed')
+    #     ax2.plot(drug_curve, color=color, linewidth=2.0)
+    #     ax2.tick_params(axis='y', labelcolor=color)
+            
+    #     ax2.legend(['Drug Conc.'],loc=(1.25,0.85),frameon=False,fontsize=15)
+        
+    #     ax2.tick_params(labelsize=18)
+    # #    plt.yticks(fontsize=18)
+    #     ax2.set_title(title,fontsize=20)
+        
+    #     if self.normalize:
+    #         counts = counts/np.max(counts)
+            
+    #     for allele in range(counts.shape[1]):
+    #         if allele in sorted_index_big:
+    #             ax.plot(counts[:,allele],linewidth=3.0,label=str(self.int_to_binary(allele)))
+    # #            print(str(allele))
+    #         else:
+    #             ax.plot(counts[:,allele],linewidth=3.0,label=None)
+    #     ax.legend(loc=(1.25,.03),frameon=False,fontsize=15)
+    # #    ax.legend(frameon=False,fontsize=15)
+    # #        ax.legend([str(int_to_binary(allele))])
+            
+    #     ax.set_xlim(0,self.x_lim)
+    #     ax.set_facecolor(color='w')
+    #     ax.grid(False)
+    
+    #     ax.set_xlabel('Time',fontsize=20)
+    #     ax.set_ylabel('Cells',fontsize=20)
+    #     ax.tick_params(labelsize=20)
+        
+    #     if self.y_lim is not None:
+    #         y_lim = self.y_lim
+    #     else:
+    #         y_lim = np.max(counts)
+        
+    #     if self.counts_log_scale:
+    #         ax.set_yscale('log')
+    #         ax.set_ylim(1,5*10**5)
+    #     else:
+    #         ax.set_ylim(0,y_lim)
+    
+    #     plt.show()
+    #     return fig,ax
+    
+    def plot_timecourse(self,counts_t=None,title_t=None):
+        
+        if (self.counts == 0).all() and counts_t is None:
             print('No data to plot!')
             return
         elif counts_t is None:
             counts = self.counts
         else:
             counts = counts_t # an input other than self overrides self
+        if title_t is not None:
+            title = title_t
+        else:
+            title = self.fig_title    
             
-        fig, ax = plt.subplots(figsize = (6,4))
+        # fig, ax = plt.subplots(2,1,
+        #                        figsize = (6,4),
+        #                        sharex=True,)
     #    plt.rcParams.update({'font.size': 22})
+        left = 0.1
+        width = 0.8
+        
+        fig,(ax1,ax3) = plt.subplots(2,1,figsize=(6,4),sharex=True) 
+        
+        ax1.set_position([left, 0.5, width, 0.6]) # ax1 is the timecourse
+        ax3.set_position([left, 0.2, width, 0.2]) # ax3 is entropy
+        
+        ax2 = ax1.twinx() # ax2 is the drug timecourse
+        ax2.set_position([left, 0.5, width, 0.6])
+                
         counts_total = np.sum(counts,axis=0)
         
         sorted_index = counts_total.argsort()
@@ -565,9 +709,7 @@ class Population:
               cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
                                 '--','--','--','--','--','--','--']))
         
-        ax.set_prop_cycle(cc)
-        
-        ax2 = ax.twinx()
+        ax1.set_prop_cycle(cc)
 
         color = [0.5,0.5,0.5]
         ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
@@ -588,45 +730,55 @@ class Population:
         ax2.plot(drug_curve, color=color, linewidth=2.0)
         ax2.tick_params(axis='y', labelcolor=color)
             
-        ax2.legend(['Drug Conc.'],loc=(1.25,0.85),frameon=False,fontsize=15)
+        ax2.legend(['Drug Conc.'],loc=(1.25,0.93),frameon=False,fontsize=15)
         
-        ax2.tick_params(labelsize=18)
+        ax2.tick_params(labelsize=15)
     #    plt.yticks(fontsize=18)
-        ax2.set_title(self.fig_title,fontsize=20)
+        ax2.set_title(title,fontsize=20)
         
         if self.normalize:
             counts = counts/np.max(counts)
             
         for allele in range(counts.shape[1]):
             if allele in sorted_index_big:
-                ax.plot(counts[:,allele],linewidth=3.0,label=str(self.int_to_binary(allele)))
+                ax1.plot(counts[:,allele],linewidth=3.0,label=str(self.int_to_binary(allele)))
     #            print(str(allele))
             else:
-                ax.plot(counts[:,allele],linewidth=3.0,label=None)
-        ax.legend(loc=(1.25,.03),frameon=False,fontsize=15)
+                ax1.plot(counts[:,allele],linewidth=3.0,label=None)
+        ax1.legend(loc=(1.25,-.12),frameon=False,fontsize=15)
     #    ax.legend(frameon=False,fontsize=15)
     #        ax.legend([str(int_to_binary(allele))])
             
-        ax.set_xlim(0,counts.shape[0])
-        ax.set_facecolor(color='w')
-        ax.grid(False)
+        ax1.set_xlim(0,self.x_lim)
+        ax1.set_facecolor(color='w')
+        ax1.grid(False)
     
-        ax.set_xlabel('Time',fontsize=20)
-        ax.set_ylabel('Cells',fontsize=20)
-        ax.tick_params(labelsize=20)
+        # ax1.set_xlabel('Time',fontsize=20)
+        ax1.set_ylabel('Cells',fontsize=20)
+        ax1.tick_params(labelsize=15)
+        
+        e = self.entropy(counts)
+        
+        ax3.plot(e,color='black')
+        ax3.set_xlabel('Time',fontsize=20)
+        ax3.set_ylabel('Entropy',fontsize=20)
+        if self.entropy_lim is not None:
+            ax3.set_ylim(0,self.entropy_lim)
+        ax3.tick_params(labelsize=15)
+        
+        if self.y_lim is not None:
+            y_lim = self.y_lim
+        else:
+            y_lim = np.max(counts)
         
         if self.counts_log_scale:
-            ax.set_yscale('log')
-            ax.set_ylim(1,5*10**5)
+            ax1.set_yscale('log')
+            ax1.set_ylim(1,5*10**5)
         else:
-    #        ax.set_yticks([0,20000,40000,60000,80000,100000])
-    #        ax.set_yticklabels(['0','$2x10^{5}$','$4x10^{5}$','$6x10^{5}$',
-    #                            '$8x10^{5}$','$10x10^{5}$'])
-            ax.set_ylim(0,np.max(counts))
-    
-    #    fig.tight_layout()
+            ax1.set_ylim(0,y_lim)
+        
         plt.show()
-        return fig,ax
+        return fig,ax1
     
     # Calculate the shannon-gibbs entropy (normalized population size)
     def entropy(self,counts=None):
@@ -647,11 +799,5 @@ class Population:
 ###############################################################################
 # Testing
 
-# p1 = Population(v2=True)
+# p1 = Population(v2=True,x_lim=200,y_lim=20000,counts_log_scale=True)
 # c = p1.simulate()
-# p1.plot_timecourse()
-
-# options = {'n_gen':1000,'max_dose':1,'n_sims':10}
-# p1 = Population(**options)
-# c = p1.simulate()
-# p1.plot_timecourse()
