@@ -6,6 +6,7 @@ import pandas as pd
 import seaborn as sns
 import warnings
 import os
+import time
 
 class Experiment():
     
@@ -59,6 +60,9 @@ class Experiment():
         
         # initialize all populations
         self.populations = []
+        
+        # initialize a list of figures for saving
+        self.figures = []
         
         if experiment_type is None:
             self.experiment_type = 'dose-survival'
@@ -117,6 +121,7 @@ class Experiment():
                                                    n_sims = 1,
                                                    # fig_title = fig_title,
                                                    # init_counts=init_counts,
+                                                   plot=False,
                                                    **self.population_options))
             self.n_survive = np.zeros([len(self.populations)])
             
@@ -183,8 +188,11 @@ class Experiment():
                     # initialize new drug curve
                     p.drug_curve = p.gen_curves()
                     c,n_survive = p.simulate()
-                    p.plot_timecourse()
+                    fig = p.plot_timecourse()
                     self.n_survive[kk] += n_survive
+                    fig_savename = 'timecourse_p=' + str(p.prob_drop) + '_' + str(i)
+                    fig_savename = fig_savename.replace('.','')
+                    self.figures.append((fig_savename,fig))                    
                 kk+=1
                 pbar.update()
                 self.perc_survive = 100*self.n_survive/self.n_sims
@@ -203,14 +211,6 @@ class Experiment():
                     # e=1
                     # p.plot_timecourse()
                     
-                    # fig,ax = plt.subplots()
-                    # ax.plot(e_t)
-                    # ax.set_xlabel('Time',fontsize=15)
-                    # ax.set_ylabel('Entropy', fontsize=15)
-                    # ax.tick_params(labelsize = 10)
-                    # ax.set_xlim(0,100)
-                    
-                    
                     if n_survive == 1:
                         survive = 'survived' # survived
                         e_survived.append(e_t)
@@ -225,6 +225,8 @@ class Experiment():
                     entropy_results_t = pd.DataFrame(d)
                     self.entropy_results = self.entropy_results.append(entropy_results_t)
                     pbar.update()
+                    
+                    
                     
                 fig,ax=plt.subplots()
                 # print('here')
@@ -252,7 +254,7 @@ class Experiment():
             for p in self.populations:
                 c,n_survive = p.simulate()
                 p.plot_entropy = False
-                p.plot_timecourse()
+                # fig = p.plot_timecourse()
                 perc_survive = 100*n_survive/p.n_sims
                 d = {'slope':[p.slope],
                     '% survival':[perc_survive]}
@@ -260,6 +262,9 @@ class Experiment():
                     
                 results_t = pd.DataFrame(d)
                 self.rate_survival_results = self.rate_survival_results.append(results_t)
+                
+                # fig_savename = 'slope = ' + str(p.slope)
+                # self.figures = self.figures.append(fig)
                 pbar.update()
     
                 
@@ -340,11 +345,31 @@ class Experiment():
             ax.set_xlim(r,l)
             # path = "C:\Users\Eshan\Documents\python scripts\theory division\abm_variable_fitness\figures\rate_survival_07312020"
             # path = os.path.normpath(path)
-            plt.savefig("C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\figures\\rate_survival_07312020\\barchart.svg")
+            # plt.savefig("C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\figures\\rate_survival_07312020\\barchart.svg")
         return
+    def save_images(self,save_folder):
+        
+        serial_ind = 0
+        date_str = time.strftime('%m%d%Y',time.localtime())
+        path = os.getcwd() + '\\' + save_folder + '_' + date_str + '_' + str(serial_ind)
+        
+        # Check if the path exists. If not, append a higher number
+        while(os.path.exists(path)):
+            serial_ind += 1
+            path = path[:-1] + str(serial_ind)
+        os.mkdir(path)    
+        
+        for figure in self.figures:
+            fig_savename = figure[0]
+            fig_savename = path + '\\' + fig_savename
+            fig = figure[1]
+            fig.savefig(fig_savename)
+        
+        return
+        
 ###############################################################################
 # Testing
 
-# max_doses = [1,10,50]
-# experiment_type = 'dose-entropy'
-# e1 = Experiment(max_doses=max_doses,experiment_type=experiment_type,n_sims=10)
+e = Experiment(experiment_type = 'drug-regimen',prob_drops=[0,.5,.7])
+e.run_experiment()
+e.save_images('figures')

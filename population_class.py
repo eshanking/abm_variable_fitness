@@ -778,7 +778,7 @@ class Population:
             ax1.set_ylim(0,y_lim)
         
         plt.show()
-        return fig,ax1
+        return fig
     
     # Calculate the shannon-gibbs entropy (normalized population size)
     def entropy(self,counts=None):
@@ -796,8 +796,56 @@ class Population:
 
         return entropy
     
+    def plot_fitness_curves(self,fig_title=''):
+    
+        # drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
+        # ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
+    #    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
+        drugless_rates = self.drugless_rates
+        ic50 = self.ic50
+        
+        fig, ax = plt.subplots(figsize = (8,6))
+        
+        powers = np.linspace(-3,5,20)
+        conc = np.power(10*np.ones(powers.shape[0]),powers)
+        fit = np.zeros(conc.shape[0])
+        
+        colors = sns.color_palette('bright')
+        colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
+        colors[[14,15]] = colors[[15,14]]
+        
+        cc = (cycler(color=colors) + 
+              cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
+                                '--','--','--','--','--','--','--']))
+        ax.set_prop_cycle(cc) 
+        
+        for allele in range(16):
+            if allele == 3:
+                fit = np.zeros(conc.shape[0])
+            if allele > 3:
+                for j in range(conc.shape[0]):
+                    fit[j] = self.gen_fitness(allele,conc[j],drugless_rates,ic50)
+            else:
+                for j in range(conc.shape[0]):
+                    fit[j] = self.gen_fitness(allele,conc[j],drugless_rates,ic50)
+            ax.plot(powers,fit,linewidth=3,label=str(self.int_to_binary(allele)))
+    #    ind = np.arange(9)
+        ax.legend(fontsize=15,frameon=False,loc=(1.05,-.10))
+        ax.set_xticks([-3,-2,-1,0,1,2,3,4,5])
+        ax.set_xticklabels(['$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
+                             '$10^1$','$10^2$','$10^3$','$10^4$','$10^5$'])
+        
+        plt.title(fig_title,fontsize=20)
+        plt.xticks(fontsize=18)
+        plt.yticks(fontsize=18)
+        
+        plt.xlabel('Drug concentration ($\mathrm{\mu}$M)',fontsize=20)
+        plt.ylabel('Growth Rate',fontsize=20)
+        ax.set_frame_on(False)
+        
+        return ax
 ###############################################################################
 # Testing
 
-# p1 = Population(v2=True,x_lim=200,y_lim=20000,counts_log_scale=True)
-# c = p1.simulate()
+# p1 = Population(k_abs=0.04,k_elim=0.04,max_dose=100,mut_rate=0.00005,death_rate=0.3,curve_type='pulsed')
+# p1.simulate()

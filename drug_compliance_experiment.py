@@ -1,14 +1,16 @@
 from experiment_class import Experiment
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
-options = {'n_impulse':15,
-           'k_abs':0.005,
-           'k_elim':0.007,
-           'max_dose':3000,
-           'n_gen':2000}
+options = {'n_impulse':20,
+            'k_abs':0.04,
+            'k_elim':0.03,
+           'max_dose':150,
+           'n_gen':1000,
+           'mut_rate':0.00005,
+           'death_rate':0.3}
 
 e = Experiment(experiment_type='drug-regimen',
-                n_sims=100 ,
+                n_sims=10,
                 prob_drops=[0,.4,.7],
                 population_options=options)
 
