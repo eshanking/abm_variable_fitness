@@ -267,7 +267,7 @@ class Experiment():
                 perc_survive = 100*n_survive/p.n_sims
                 
                 if p.curve_type == 'pharm':
-                    d = {'k_{abs}':[p.k_abs],
+                    d = {'k_abs':[p.k_abs],
                         '% survival':[perc_survive]}
                     # 'max entropy':[e]}
                 else:
@@ -280,7 +280,7 @@ class Experiment():
                 # fig_savename = 'slope = ' + str(p.slope)
                 # self.figures = self.figures.append(fig)
                 pbar.update()
-    
+            self.rate_survival_results.index = np.arange(len(self.rate_survival_results))
                 
         pbar.close() # close progress bar
 
@@ -356,16 +356,27 @@ class Experiment():
             # sns.swarmplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,color='black')
             # sns.boxplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,palette='Set2')
             if self.curve_types[0] == 'pharm':
-                x_axis = 'k_{abs}'
+                x_axis = 'k_abs'
             else:
                 x_axis = 'slope'
                 
-            sns.barplot(x=x_axis,y='% survival',data = data,palette='Set2')
+            sns.barplot(x=x_axis,y='% survival',data = data,palette='Set2',ci='sd')
             if self.curve_types[0] == 'pharm':
                 # x_label = 'k_{abs}'
                 ax.set_xlabel(r'$k_{abs}$',fontsize=12)
             else:
                 ax.set_xlabel('Slope (uM/time)',fontsize=12)
+            
+            # compute standard deviation
+            p = data['% survival'].values
+            n = self.n_sims
+            p = p/100
+            q = 1-p
+            sd = 100*(p*q/n)**0.5 # variance of the estimator of the parameter of a bernoulli distribution
+            
+            y = data['% survival'].values
+            x = data['k_abs'].values
+            ax.errorbar(x=np.arange(len(data)), y=y, yerr=sd,linewidth=0,elinewidth=2,capsize=5)
             # ax.set_xlabel(x_label)
             l,r = ax.get_xlim()
             ax.set_xlim(r,l)
