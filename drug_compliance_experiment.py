@@ -16,6 +16,7 @@ e = Experiment(experiment_type='drug-regimen',
 
 e.run_experiment()
 e.plot_barchart()
+e.save_images()
 
 # import matplotlib.pyplot as plt
 

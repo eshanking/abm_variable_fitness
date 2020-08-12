@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 from cycler import cycler
 import seaborn as sns
 import scipy as sp
+import warnings
 
 class Population:
 ###############################################################################    
@@ -112,6 +113,9 @@ class Population:
         self.curve_type = curve_type # linear, constant, heaviside, pharm, pulsed
         
         # Pharmacological paramters
+        if k_abs < k_elim:
+            raise Exception('Inappropriate pharmacokinetic values: k_abs < k_elim.')            
+        
         self.k_elim = k_elim
         self.k_abs = k_abs 
         self.pad_right = pad_right
@@ -804,7 +808,7 @@ class Population:
         drugless_rates = self.drugless_rates
         ic50 = self.ic50
         
-        fig, ax = plt.subplots(figsize = (8,6))
+        fig, ax = plt.subplots(figsize = (12,6))
         
         powers = np.linspace(-3,5,20)
         conc = np.power(10*np.ones(powers.shape[0]),powers)
@@ -830,7 +834,7 @@ class Population:
                     fit[j] = self.gen_fitness(allele,conc[j],drugless_rates,ic50)
             ax.plot(powers,fit,linewidth=3,label=str(self.int_to_binary(allele)))
     #    ind = np.arange(9)
-        ax.legend(fontsize=15,frameon=False,loc=(1.05,-.10))
+        ax.legend(fontsize=15,frameon=False,loc=(1,-.10))
         ax.set_xticks([-3,-2,-1,0,1,2,3,4,5])
         ax.set_xticklabels(['$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
                              '$10^1$','$10^2$','$10^3$','$10^4$','$10^5$'])
@@ -847,5 +851,5 @@ class Population:
 ###############################################################################
 # Testing
 
-# p1 = Population(k_abs=0.04,k_elim=0.04,max_dose=100,mut_rate=0.00005,death_rate=0.3,curve_type='pulsed')
+# p1 = Population(k_abs=0.001,max_dose=200,mut_rate=0.00005,death_rate=0.3,curve_type='pharm')
 # p1.simulate()

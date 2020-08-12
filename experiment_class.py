@@ -132,13 +132,22 @@ class Experiment():
             self.entropy_results = pd.DataFrame(columns=[]) # will become a dataframe later
             
         elif self.experiment_type == 'rate-survival':
+            # if the curve type is 'pharm' then slope will be interpreted as k_abs
             self.slopes = slopes
             for slope in self.slopes:
-                self.populations.append(Population(max_dose=self.max_doses[0],
-                                                    slope=slope,
-                                                    curve_type='linear',
-                                                    n_sims=self.n_sims,
-                                                    **self.population_options))
+                if curve_types[0] == 'pharm':
+                    self.populations.append(Population(max_dose=self.max_doses[0],
+                                                        k_abs=slope,
+                                                        curve_type='pharm',
+                                                        n_sims=self.n_sims,
+                                                        **self.population_options))
+                else:
+                    self.populations.append(Population(max_dose=self.max_doses[0],
+                                                        slope=slope,
+                                                        curve_type='linear',
+                                                        n_sims=self.n_sims,
+                                                        **self.population_options))                        
+                    
             self.rate_survival_results = pd.DataFrame(columns=[])
         # self.n_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
         # self.perc_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
@@ -256,9 +265,14 @@ class Experiment():
                 p.plot_entropy = False
                 # fig = p.plot_timecourse()
                 perc_survive = 100*n_survive/p.n_sims
-                d = {'slope':[p.slope],
-                    '% survival':[perc_survive]}
+                
+                if p.curve_type == 'pharm':
+                    d = {'k_{abs}':[p.k_abs],
+                        '% survival':[perc_survive]}
                     # 'max entropy':[e]}
+                else:
+                    d = {'slope':[p.slope],
+                        '% survival':[perc_survive]}                    
                     
                 results_t = pd.DataFrame(d)
                 self.rate_survival_results = self.rate_survival_results.append(results_t)
@@ -333,22 +347,35 @@ class Experiment():
             ax.set_ylabel('Percent survival', fontsize=15)
             ax.tick_params(labelsize = 15)
             ax.set_ylim(0,100)
+            self.figures.append(('barchart',fig))
+            
         elif self.experiment_type == 'rate-survival':
             fig,ax = plt.subplots()
             data = self.rate_survival_results
             # data.reindex(index=data.index[::-1])
             # sns.swarmplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,color='black')
             # sns.boxplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,palette='Set2')
-            sns.barplot(x='slope',y='% survival',data = data,palette='Set2')
-            ax.set_xlabel('Slope (uM/time)')
+            if self.curve_types[0] == 'pharm':
+                x_axis = 'k_{abs}'
+            else:
+                x_axis = 'slope'
+                
+            sns.barplot(x=x_axis,y='% survival',data = data,palette='Set2')
+            if self.curve_types[0] == 'pharm':
+                # x_label = 'k_{abs}'
+                ax.set_xlabel(r'$k_{abs}$',fontsize=12)
+            else:
+                ax.set_xlabel('Slope (uM/time)',fontsize=12)
+            # ax.set_xlabel(x_label)
             l,r = ax.get_xlim()
             ax.set_xlim(r,l)
             # path = "C:\Users\Eshan\Documents\python scripts\theory division\abm_variable_fitness\figures\rate_survival_07312020"
             # path = os.path.normpath(path)
             # plt.savefig("C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\figures\\rate_survival_07312020\\barchart.svg")
         return
-    def save_images(self,save_folder):
-        
+    def save_images(self,save_folder=None):
+        if save_folder is None:
+            save_folder = self.experiment_type + '_figures'
         serial_ind = 0
         date_str = time.strftime('%m%d%Y',time.localtime())
         path = os.getcwd() + '\\' + save_folder + '_' + date_str + '_' + str(serial_ind)
@@ -363,13 +390,13 @@ class Experiment():
             fig_savename = figure[0]
             fig_savename = path + '\\' + fig_savename
             fig = figure[1]
-            fig.savefig(fig_savename)
+            fig.savefig(fig_savename,bbox_inches="tight")
         
         return
         
 ###############################################################################
 # Testing
 
-e = Experiment(experiment_type = 'drug-regimen',prob_drops=[0,.5,.7])
-e.run_experiment()
-e.save_images('figures')
+# e = Experiment(experiment_type = 'drug-regimen',prob_drops=[0,.5,.7])
+# e.run_experiment()
+# e.save_images('figures')
