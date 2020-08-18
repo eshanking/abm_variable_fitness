@@ -1,12 +1,12 @@
 from experiment_class import Experiment
-import numpy as np
+# import numpy as np
 
 max_doses = [200]
 curve_types = ['pharm']
 experiment_type = 'rate-survival'
-n_sims = 100
-# slopes = [.0005,0.00075,]
-slopes = np.linspace(0.0001,0.01,num=3)
+n_sims = 10
+slopes = [.0005,0.005,0.05,]
+# slopes = np.linspace(0.0001,0.01,num=3)
 
 # scale = 5 # scale time by two
 mut_rate = 0.00005
