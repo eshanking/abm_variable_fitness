@@ -4,7 +4,7 @@ from experiment_class import Experiment
 max_doses = [200]
 curve_types = ['pharm']
 experiment_type = 'rate-survival'
-n_sims = 10
+n_sims = 100
 slopes = [.0005,0.005,0.05,]
 # slopes = np.linspace(0.0001,0.01,num=3)
 

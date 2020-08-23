@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 from cycler import cycler
 import seaborn as sns
 import scipy as sp
-import warnings
+# import warnings
 
 class Population:
 ###############################################################################    
@@ -90,12 +90,14 @@ class Population:
         
         # Data paths
         if drugless_path is None:
-            self.drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
+            # self.drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
+            self.drugless_path = 'ogbunugafor_drugless.csv'
         else:
             self.drugless_path = drugless_path
             
         if ic50_path is None:
-            self.ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
+            # self.ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
+            self.ic50_path = 'pyrimethamine_ic50.csv'
         else:
             self.ic50_path = ic50_path
         

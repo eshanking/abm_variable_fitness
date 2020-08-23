@@ -1,13 +1,10 @@
-# An interactive class for running experiments.
-# Options for outputting or saving images.
-# Less functionality for saving raw data.
+# Non-interactive class for running experiments and saving raw data.
+# Does not produce images by default.
 
 from population_class import Population
-from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
 import warnings
 import os
 import time
@@ -149,13 +146,13 @@ class Experiment():
                     self.populations.append(Population(max_dose=self.max_doses[0],
                                                         k_abs=slope,
                                                         curve_type='pharm',
-                                                        n_sims=self.n_sims,
+                                                        n_sims=1,
                                                         **self.population_options))
                 else:
                     self.populations.append(Population(max_dose=self.max_doses[0],
                                                         slope=slope,
                                                         curve_type='linear',
-                                                        n_sims=self.n_sims,
+                                                        n_sims=1,
                                                         **self.population_options))                        
                     
             self.rate_survival_results = pd.DataFrame(columns=[])
@@ -192,7 +189,7 @@ class Experiment():
         # Loop through each population, execute simulations, and store survival statistics
         
         if self.experiment_type == 'dose-survival':
-            pbar = tqdm(total = n_curves*n_doses) # progress bar
+            # pbar = tqdm(total = n_curves*n_doses) # progress bar
             for curve_number in range(n_curves):
                 for dose_number in range(n_doses):
                     
@@ -201,11 +198,11 @@ class Experiment():
                     c,n_survive_t = pop.simulate()
                     pop.plot_timecourse()
                     self.n_survive[curve_number,dose_number] = n_survive_t
-                    pbar.update()
+                    # pbar.update()
             self.perc_survive = 100*self.n_survive/self.n_sims   
                  
         elif self.experiment_type == 'inoculant-survival':
-            pbar = tqdm(total = n_curves*n_inoc) # progress bar
+            # pbar = tqdm(total = n_curves*n_inoc) # progress bar
             for curve_number in range(n_curves):
                 for inoc_num in range(n_inoc):
                     
@@ -214,11 +211,11 @@ class Experiment():
                     c,n_survive_t = pop.simulate()
                     pop.plot_timecourse()
                     self.n_survive[curve_number,inoc_num] = n_survive_t
-                    pbar.update()           
+                    # pbar.update()           
             self.perc_survive = 100*self.n_survive/self.n_sims
             
         elif self.experiment_type == 'drug-regimen':
-            pbar = tqdm(total=len(self.populations))
+            # pbar = tqdm(total=len(self.populations))
             kk=0
             for p in self.populations:
                 for i in range(self.n_sims):
@@ -231,11 +228,11 @@ class Experiment():
                     fig_savename = fig_savename.replace('.','')
                     self.figures.append((fig_savename,fig))                    
                 kk+=1
-                pbar.update()
+                # pbar.update()
                 self.perc_survive = 100*self.n_survive/self.n_sims
             
         elif self.experiment_type == 'dose-entropy':
-            pbar = tqdm(total=len(self.populations)*self.n_sims)
+            # pbar = tqdm(total=len(self.populations)*self.n_sims)
             e_survived = []
             e_died = []
             for p in self.populations:
@@ -261,7 +258,7 @@ class Experiment():
                     
                     entropy_results_t = pd.DataFrame(d)
                     self.entropy_results = self.entropy_results.append(entropy_results_t)
-                    pbar.update()
+                    # pbar.update()
                     
                     
                     
@@ -286,7 +283,7 @@ class Experiment():
                 ax.legend(handles, labels, loc='best')
         
         elif self.experiment_type == 'rate-survival':
-            pbar = tqdm(total=len(self.populations))
+            # pbar = tqdm(total=len(self.populations))
             
             for p in self.populations:
                 c,n_survive = p.simulate()
@@ -307,133 +304,133 @@ class Experiment():
                 
                 # fig_savename = 'slope = ' + str(p.slope)
                 # self.figures = self.figures.append(fig)
-                pbar.update()
+                # pbar.update()
             self.rate_survival_results.index = np.arange(len(self.rate_survival_results))
                 
-        pbar.close() # close progress bar
+        # pbar.close() # close progress bar
 
 
     # Plot final results in a bar chart
-    def plot_barchart(self):
+    # def plot_barchart(self):
         
-        if self.experiment_type == 'dose-survival':
-            fig,ax = plt.subplots(1,1,figsize=(10,5))
-            n_doses = len(self.max_doses)
-            n_curves = len(self.curve_types)
+    #     if self.experiment_type == 'dose-survival':
+    #         fig,ax = plt.subplots(1,1,figsize=(10,5))
+    #         n_doses = len(self.max_doses)
+    #         n_curves = len(self.curve_types)
             
-            w = 1/(n_doses+1)
+    #         w = 1/(n_doses+1)
             
-            for curve_number in range(n_curves):
-                data = self.perc_survive[curve_number,:]
-                N = len(data)
-                ind = np.arange(N) + curve_number*w
-                ax.bar(ind,data,w-.05,label = self.curve_types[curve_number])
+    #         for curve_number in range(n_curves):
+    #             data = self.perc_survive[curve_number,:]
+    #             N = len(data)
+    #             ind = np.arange(N) + curve_number*w
+    #             ax.bar(ind,data,w-.05,label = self.curve_types[curve_number])
                 
-            x_labels = [str(num) for num in self.max_doses]
-            ax.set_xticks(np.arange(N)+w*n_curves/2-w/2)
-            ax.set_xticklabels(x_labels)
+    #         x_labels = [str(num) for num in self.max_doses]
+    #         ax.set_xticks(np.arange(N)+w*n_curves/2-w/2)
+    #         ax.set_xticklabels(x_labels)
             
-            ax.legend(loc='best')
-            ax.set_xlabel('Max dose (uM)',fontsize=15)
-            ax.set_ylabel('Percent survival', fontsize=15)
-            ax.tick_params(labelsize = 10)
-            ax.set_ylim(0,100)
+    #         ax.legend(loc='best')
+    #         ax.set_xlabel('Max dose (uM)',fontsize=15)
+    #         ax.set_ylabel('Percent survival', fontsize=15)
+    #         ax.tick_params(labelsize = 10)
+    #         ax.set_ylim(0,100)
             
-        elif self.experiment_type == 'inoculant-survival':
-            fig,ax = plt.subplots(1,1,figsize=(10,5))
-            n_inoculants = len(self.inoculants)
-            n_curves = len(self.curve_types)
+    #     elif self.experiment_type == 'inoculant-survival':
+    #         fig,ax = plt.subplots(1,1,figsize=(10,5))
+    #         n_inoculants = len(self.inoculants)
+    #         n_curves = len(self.curve_types)
             
-            w = 1/(n_inoculants+1)
+    #         w = 1/(n_inoculants+1)
             
-            for curve_number in range(n_curves):
-                data = self.perc_survive[curve_number,:]
-                N = len(data)
-                ind = np.arange(N) + curve_number*w
-                ax.bar(ind,data,w-.05,label = self.curve_types[curve_number])
+    #         for curve_number in range(n_curves):
+    #             data = self.perc_survive[curve_number,:]
+    #             N = len(data)
+    #             ind = np.arange(N) + curve_number*w
+    #             ax.bar(ind,data,w-.05,label = self.curve_types[curve_number])
                 
-            x_labels = [str(num) for num in self.inoculants]
-            ax.set_xticks(np.arange(N)+w*n_curves/2-w/2)
-            ax.set_xticklabels(x_labels)
+    #         x_labels = [str(num) for num in self.inoculants]
+    #         ax.set_xticks(np.arange(N)+w*n_curves/2-w/2)
+    #         ax.set_xticklabels(x_labels)
             
-            ax.legend(loc='best')
-            ax.set_xlabel('Inoculant size (cells)',fontsize=15)
-            ax.set_ylabel('Percent survival', fontsize=15)
-            ax.tick_params(labelsize = 10)
-            ax.set_ylim(0,100)
+    #         ax.legend(loc='best')
+    #         ax.set_xlabel('Inoculant size (cells)',fontsize=15)
+    #         ax.set_ylabel('Percent survival', fontsize=15)
+    #         ax.tick_params(labelsize = 10)
+    #         ax.set_ylim(0,100)
         
-        elif self.experiment_type == 'drug-regimen':
-            fig,ax = plt.subplots(1,1,figsize=(7,5))
+    #     elif self.experiment_type == 'drug-regimen':
+    #         fig,ax = plt.subplots(1,1,figsize=(7,5))
             
-            x = np.arange(len(self.populations))
-            ax.bar(x,self.perc_survive)
-            x_labels = [str(prob) for prob in self.prob_drops]            
-            ax.set_xticks(x)
-            ax.set_xticklabels(x_labels)
+    #         x = np.arange(len(self.populations))
+    #         ax.bar(x,self.perc_survive)
+    #         x_labels = [str(prob) for prob in self.prob_drops]            
+    #         ax.set_xticks(x)
+    #         ax.set_xticklabels(x_labels)
             
-            ax.set_xlabel('Probability of dropping',fontsize=15)
-            ax.set_ylabel('Percent survival', fontsize=15)
-            ax.tick_params(labelsize = 15)
-            ax.set_ylim(0,100)
-            self.figures.append(('barchart',fig))
+    #         ax.set_xlabel('Probability of dropping',fontsize=15)
+    #         ax.set_ylabel('Percent survival', fontsize=15)
+    #         ax.tick_params(labelsize = 15)
+    #         ax.set_ylim(0,100)
+    #         self.figures.append(('barchart',fig))
             
-        elif self.experiment_type == 'rate-survival':
-            fig,ax = plt.subplots()
-            data = self.rate_survival_results
-            # data.reindex(index=data.index[::-1])
-            # sns.swarmplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,color='black')
-            # sns.boxplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,palette='Set2')
-            if self.curve_types[0] == 'pharm':
-                x_axis = 'k_abs'
-            else:
-                x_axis = 'slope'
+    #     elif self.experiment_type == 'rate-survival':
+    #         fig,ax = plt.subplots()
+    #         data = self.rate_survival_results
+    #         # data.reindex(index=data.index[::-1])
+    #         # sns.swarmplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,color='black')
+    #         # sns.boxplot(x='dose',y='max entropy',data=e,ax=ax,hue='survive condition',dodge=True,palette='Set2')
+    #         if self.curve_types[0] == 'pharm':
+    #             x_axis = 'k_abs'
+    #         else:
+    #             x_axis = 'slope'
                 
-            sns.barplot(x=x_axis,y='% survival',data = data,palette='Set2',ci='sd')
-            if self.curve_types[0] == 'pharm':
-                # x_label = 'k_{abs}'
-                ax.set_xlabel(r'$k_{abs}$',fontsize=12)
-            else:
-                ax.set_xlabel('Slope (uM/time)',fontsize=12)
+    #         sns.barplot(x=x_axis,y='% survival',data = data,palette='Set2',ci='sd')
+    #         if self.curve_types[0] == 'pharm':
+    #             # x_label = 'k_{abs}'
+    #             ax.set_xlabel(r'$k_{abs}$',fontsize=12)
+    #         else:
+    #             ax.set_xlabel('Slope (uM/time)',fontsize=12)
             
-            # compute standard deviation
-            p = data['% survival'].values
-            n = self.n_sims
-            p = p/100
-            q = 1-p
+    #         # compute standard deviation
+    #         p = data['% survival'].values
+    #         n = self.n_sims
+    #         p = p/100
+    #         q = 1-p
             
-            sd = 100*(p*q/n)**0.5 # variance of the estimator of the parameter of a bernoulli distribution
+    #         sd = 100*(p*q/n)**0.5 # variance of the estimator of the parameter of a bernoulli distribution
             
-            y = data['% survival'].values
-            x = data['k_abs'].values
-            ax.errorbar(x=np.arange(len(data)), y=y, yerr=sd,linewidth=0,elinewidth=2,capsize=5)
-            # ax.set_xlabel(x_label)
-            l,r = ax.get_xlim()
-            ax.set_xlim(r,l)
-            # path = "C:\Users\Eshan\Documents\python scripts\theory division\abm_variable_fitness\figures\rate_survival_07312020"
-            # path = os.path.normpath(path)
-            # plt.savefig("C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\figures\\rate_survival_07312020\\barchart.svg")
-        return
+    #         y = data['% survival'].values
+    #         x = data['k_abs'].values
+    #         ax.errorbar(x=np.arange(len(data)), y=y, yerr=sd,linewidth=0,elinewidth=2,capsize=5)
+    #         # ax.set_xlabel(x_label)
+    #         l,r = ax.get_xlim()
+    #         ax.set_xlim(r,l)
+    #         # path = "C:\Users\Eshan\Documents\python scripts\theory division\abm_variable_fitness\figures\rate_survival_07312020"
+    #         # path = os.path.normpath(path)
+    #         # plt.savefig("C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\figures\\rate_survival_07312020\\barchart.svg")
+    #     return
     
-    def save_images(self,save_folder=None):
-        if save_folder is None:
-            save_folder = self.experiment_type + '_figures'
-        serial_ind = 0
-        date_str = time.strftime('%m%d%Y',time.localtime())
-        path = os.getcwd() + '\\' + save_folder + '_' + date_str + '_' + str(serial_ind)
+    # def save_images(self,save_folder=None):
+    #     if save_folder is None:
+    #         save_folder = self.experiment_type + '_figures'
+    #     serial_ind = 0
+    #     date_str = time.strftime('%m%d%Y',time.localtime())
+    #     path = os.getcwd() + '\\' + save_folder + '_' + date_str + '_' + str(serial_ind)
         
-        # Check if the path exists. If not, append a higher number
-        while(os.path.exists(path)):
-            serial_ind += 1
-            path = path[:-1] + str(serial_ind)
-        os.mkdir(path)    
+    #     # Check if the path exists. If not, append a higher number
+    #     while(os.path.exists(path)):
+    #         serial_ind += 1
+    #         path = path[:-1] + str(serial_ind)
+    #     os.mkdir(path)    
         
-        for figure in self.figures:
-            fig_savename = figure[0]
-            fig_savename = path + '\\' + fig_savename
-            fig = figure[1]
-            fig.savefig(fig_savename,bbox_inches="tight")
+    #     for figure in self.figures:
+    #         fig_savename = figure[0]
+    #         fig_savename = path + '\\' + fig_savename
+    #         fig = figure[1]
+    #         fig.savefig(fig_savename,bbox_inches="tight")
         
-        return
+    #     return
     
     # save counts as a csv in the given subfolder with the label 'num'
     def save_counts(self,counts,num,save_folder,prefix='sim_'):
