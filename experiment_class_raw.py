@@ -172,7 +172,7 @@ class Experiment():
                 save_folder = os.getcwd() + '\\results_' + date_str + '_' + num_str
             os.mkdir(save_folder) 
             
-        self.results_path = save_folder
+            self.results_path = save_folder
         
         # self.n_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
         # self.perc_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
@@ -286,22 +286,20 @@ class Experiment():
             # pbar = tqdm(total=len(self.populations))
             
             for p in self.populations:
-                c,n_survive = p.simulate()
-                p.plot_entropy = False
-                # fig = p.plot_timecourse()
-                perc_survive = 100*n_survive/p.n_sims
-                
-                if p.curve_type == 'pharm':
-                    d = {'k_abs':[p.k_abs],
-                        '% survival':[perc_survive]}
-                    # 'max entropy':[e]}
-                else:
-                    d = {'slope':[p.slope],
-                        '% survival':[perc_survive]}                    
+                for n in range(self.n_sims):
+                    counts,n_survive = p.simulate()
                     
-                results_t = pd.DataFrame(d)
-                self.rate_survival_results = self.rate_survival_results.append(results_t)
-                
+                    drug = p.drug_curve
+                    drug = np.array([drug])
+                    drug = np.transpose(drug)
+                    counts = np.concatenate((counts,drug),axis=1)
+                    if self.curve_types[0] == 'pharm':
+                        save_folder = 'k_abs=' + str(p.k_abs)
+                        save_folder.replace('.','pnt')
+                    else:
+                        save_folder = 'slope=' + str(p.slope)
+                        save_folder.replace('.','pnt')
+                    self.save_counts(counts,n,save_folder)
                 # fig_savename = 'slope = ' + str(p.slope)
                 # self.figures = self.figures.append(fig)
                 # pbar.update()
@@ -435,10 +433,13 @@ class Experiment():
     # save counts as a csv in the given subfolder with the label 'num'
     def save_counts(self,counts,num,save_folder,prefix='sim_'):
         
+        # check if the desired save folder exists. If not, create it
+        folder_path = self.results_path + '\\' + save_folder
+        if os.path.exists(folder_path) != True:
+            os.mkdir(folder_path)
+            
         num = str(num).zfill(4)
-        
-        savename = self.results_path + '\\' + save_folder + '\\' + prefix + num
-        
+        savename = self.results_path + '\\' + save_folder + '\\' + prefix + num + '.csv'
         np.savetxt(savename, counts, delimiter=",")
         return
         
