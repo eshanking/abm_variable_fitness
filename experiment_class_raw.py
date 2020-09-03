@@ -265,25 +265,25 @@ class Experiment():
                     
                     
                     
-                fig,ax=plt.subplots()
+                # fig,ax=plt.subplots()
                 # print('here')
-                for i in range(len(e_survived)):
-                    e_t = e_survived[i]
-                    ax.plot(e_t[0:50],color ='red',label='survived')
-                for i in range(len(e_died)):
-                    e_t = e_died[i]
-                    ax.plot(e_t[0:50],color ='blue',label='died')
+                # for i in range(len(e_survived)):
+                #     e_t = e_survived[i]
+                #     ax.plot(e_t[0:50],color ='red',label='survived')
+                # for i in range(len(e_died)):
+                #     e_t = e_died[i]
+                #     ax.plot(e_t[0:50],color ='blue',label='died')
                 
-                ax.set_xlabel('Time',fontsize=15)
-                ax.set_ylabel('Entropy', fontsize=15)
-                ax.tick_params(labelsize = 10)
-                ax.set_xlim(0,50)
+                # ax.set_xlabel('Time',fontsize=15)
+                # ax.set_ylabel('Entropy', fontsize=15)
+                # ax.tick_params(labelsize = 10)
+                # ax.set_xlim(0,50)
                 
-                ax.legend()
-                handles, labels = ax.get_legend_handles_labels()
-                labels, ids = np.unique(labels, return_index=True)
-                handles = [handles[i] for i in ids]
-                ax.legend(handles, labels, loc='best')
+                # ax.legend()
+                # handles, labels = ax.get_legend_handles_labels()
+                # labels, ids = np.unique(labels, return_index=True)
+                # handles = [handles[i] for i in ids]
+                # ax.legend(handles, labels, loc='best')
         
         elif self.experiment_type == 'rate-survival':
             # pbar = tqdm(total=len(self.populations))
