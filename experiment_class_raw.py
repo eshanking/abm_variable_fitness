@@ -166,12 +166,12 @@ class Experiment():
             
             date_str = time.strftime('%m%d%Y',time.localtime())
             
-            save_folder = os.getcwd() + '\\results_' + date_str + '_' + num_str
+            save_folder = os.getcwd() + '//results_' + date_str + '_' + num_str
             
             while(os.path.exists(save_folder)):
                 num += 1
                 num_str = str(num).zfill(4)
-                save_folder = os.getcwd() + '\\results_' + date_str + '_' + num_str
+                save_folder = os.getcwd() + '//results_' + date_str + '_' + num_str
             os.mkdir(save_folder) 
             
             self.results_path = save_folder
@@ -439,12 +439,12 @@ class Experiment():
     def save_counts(self,counts,num,save_folder,prefix='sim_'):
         
         # check if the desired save folder exists. If not, create it
-        folder_path = self.results_path + '\\' + save_folder
+        folder_path = self.results_path + '//' + save_folder
         if os.path.exists(folder_path) != True:
             os.mkdir(folder_path)
             
         num = str(num).zfill(4)
-        savename = self.results_path + '\\' + save_folder + '\\' + prefix + num + '.csv'
+        savename = self.results_path + '//' + save_folder + '//' + prefix + num + '.csv'
         np.savetxt(savename, counts, delimiter=",")
         return
         
