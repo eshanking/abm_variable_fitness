@@ -6,7 +6,7 @@ import time
 max_doses = [200]
 curve_types = ['pharm']
 experiment_type = 'rate-survival'
-n_sims = 1000
+n_sims = 1
 # slopes = [.0005,0.005,0.05]
 slopes = np.linspace(0.0005,0.05,10)
 # slopes = np.linspace(0.0001,0.01,num=3)
