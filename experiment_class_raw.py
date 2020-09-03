@@ -3,7 +3,7 @@
 
 from population_class import Population
 import numpy as np
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import pandas as pd
 import warnings
 import os
