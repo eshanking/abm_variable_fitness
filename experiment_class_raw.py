@@ -24,12 +24,14 @@ class Experiment():
                  slopes=None,
                  debug = True): # debug = True -> no save
         
+        # list of allowed drug curve types
         allowed_types = ['linear',
                          'constant',
                          'heaviside',
                          'pharm',
                          'pulsed']
         
+        # list of defined experiments
         allowed_experiments = ['inoculant-survival',
                                'dose-survival',
                                'drug-regimen',
@@ -155,7 +157,7 @@ class Experiment():
                                                         n_sims=1,
                                                         **self.population_options))                        
                     
-            self.rate_survival_results = pd.DataFrame(columns=[])
+            # self.rate_survival_results = pd.DataFrame(columns=[])
             
         # generate new save folder        
         if not debug:
@@ -179,6 +181,7 @@ class Experiment():
 ###############################################################################
     # Methods for running experiments
     
+    # run experiment and save results
     def run_experiment(self):
         n_doses = len(self.max_doses)
         n_curves = len(self.curve_types)
@@ -293,6 +296,7 @@ class Experiment():
                     drug = np.array([drug])
                     drug = np.transpose(drug)
                     counts = np.concatenate((counts,drug),axis=1)
+                    
                     if self.curve_types[0] == 'pharm':
                         save_folder = 'k_abs=' + str(p.k_abs)
                         save_folder.replace('.','pnt')
@@ -300,10 +304,11 @@ class Experiment():
                         save_folder = 'slope=' + str(p.slope)
                         save_folder.replace('.','pnt')
                     self.save_counts(counts,n,save_folder)
+                    
                 # fig_savename = 'slope = ' + str(p.slope)
                 # self.figures = self.figures.append(fig)
                 # pbar.update()
-            self.rate_survival_results.index = np.arange(len(self.rate_survival_results))
+            # self.rate_survival_results.index = np.arange(len(self.rate_survival_results))
                 
         # pbar.close() # close progress bar
 
