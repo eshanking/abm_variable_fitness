@@ -6,7 +6,7 @@ import time
 max_doses = [200]
 curve_types = ['pharm']
 experiment_type = 'rate-survival'
-n_sims = 1
+n_sims = 100
 # slopes = [.0005,0.005,0.05]
 slopes = np.linspace(0.0005,0.05,10)
 # slopes = np.linspace(0.0001,0.01,num=3)
@@ -23,7 +23,8 @@ options = {'mut_rate':mut_rate,
            # 'y_lim':2*10**4,
            # 'counts_log_scale':True, 
             'plot':False,
-            'k_elim':0.00009}
+            'k_elim':0.00009,
+            'n_gen':2000}
 
 e = Experiment(max_doses=max_doses,
                slopes=slopes,
@@ -37,3 +38,4 @@ t = time.time()
 e.run_experiment()
 # e.plot_barchart()
 elapsed = time.time() - t
+print(str(round(elapsed)))
