@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from cycler import cycler
-# import seaborn as sns
+import seaborn as sns
 import scipy as sp
 # import warnings
 
@@ -198,14 +198,11 @@ class Population:
         return trans_mat
     
     # compute fitness given a drug concentration
-    def gen_fitness(self,allele,conc,drugless_rate,ic50):
-        # input: allele (integer from 0 to 15)
-        # conc: current drug concentration
-        # output: allele fitness
+    def gen_fitness(self,allele,conc,drugless_rate,ic50):        
         c = -.6824968 # empirical curve fit
-    #    c = -100
+
         # logistic equation from Ogbunugafor 2016
-        conc = conc/10**6;
+        conc = conc/10**6 # concentration in uM, convert to M
         
         # ic50 is already log-ed in the dataset
         log_eqn = lambda d,i: d/(1+np.exp((i-np.log10(conc))/c))
@@ -213,7 +210,7 @@ class Population:
             fitness = drugless_rate[allele]
         else:
             fitness = log_eqn(drugless_rate[allele],ic50[allele])
-    #    fitness = 0
+
         return fitness
     
     def gen_fit_land(self,conc):
@@ -804,9 +801,6 @@ class Population:
     
     def plot_fitness_curves(self,fig_title=''):
     
-        # drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
-        # ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
-    #    ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
         drugless_rates = self.drugless_rates
         ic50 = self.ic50
         
