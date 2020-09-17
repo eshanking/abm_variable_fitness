@@ -9,7 +9,8 @@ experiment_type = 'rate-survival'
 n_sims = 100
 # slopes = [.0005,0.005,0.05]
 # slopes = np.linspace(0.0005,0.0105,5)
-slopes = np.linspace(0.0005,0.0045,5)
+# slopes = np.linspace(0.0005,0.0045,5)
+slopes = np.array([0.0005,0.001,0.002,0.004,0.008])
 # slopes = np.linspace(0.0001,0.01,num=3)
 
 # scale = 5 # scale time by two
