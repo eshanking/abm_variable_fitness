@@ -3,8 +3,8 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from cycler import cycler
-import seaborn as sns
+# from cycler import cycler
+# import seaborn as sns
 import scipy as sp
 # import warnings
 
@@ -702,17 +702,17 @@ class Population:
         sorted_index = counts_total.argsort()
         sorted_index_big = sorted_index[8:]
         
-        colors = sns.color_palette('bright')
-        colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
+        # colors = sns.color_palette('bright')
+        # colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
         # shuffle colors
 
-        colors[[14,15]] = colors[[15,14]]
+        # colors[[14,15]] = colors[[15,14]]
         
-        cc = (cycler(color=colors) + 
-              cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
-                                '--','--','--','--','--','--','--']))
+        # cc = (cycler(color=colors) + 
+        #       cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
+        #                         '--','--','--','--','--','--','--']))
         
-        ax1.set_prop_cycle(cc)
+        # ax1.set_prop_cycle(cc)
 
         color = [0.5,0.5,0.5]
         ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
@@ -810,14 +810,14 @@ class Population:
         conc = np.power(10*np.ones(powers.shape[0]),powers)
         fit = np.zeros(conc.shape[0])
         
-        colors = sns.color_palette('bright')
-        colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
-        colors[[14,15]] = colors[[15,14]]
+        # colors = sns.color_palette('bright')
+        # colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
+        # colors[[14,15]] = colors[[15,14]]
         
-        cc = (cycler(color=colors) + 
-              cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
-                                '--','--','--','--','--','--','--']))
-        ax.set_prop_cycle(cc) 
+        # cc = (cycler(color=colors) + 
+              # cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
+                                # '--','--','--','--','--','--','--']))
+        # ax.set_prop_cycle(cc) 
         
         for allele in range(16):
             if allele == 3:
