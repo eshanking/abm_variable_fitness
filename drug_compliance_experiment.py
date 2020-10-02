@@ -12,7 +12,8 @@ options = {'n_impulse':20,
 e = Experiment(experiment_type='drug-regimen',
                 n_sims=10,
                 prob_drops=[0,.4,.7],
-                population_options=options)
+                population_options=options,
+                debug=True)
 
 e.run_experiment()
 e.plot_barchart()

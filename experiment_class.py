@@ -173,9 +173,8 @@ class Experiment():
                 num += 1
                 num_str = str(num).zfill(4)
                 save_folder = os.getcwd() + '\\results_' + date_str + '_' + num_str
-            os.mkdir(save_folder) 
-            
-        self.results_path = save_folder
+            os.mkdir(save_folder)     
+            self.results_path = save_folder
         
         # self.n_survive = np.zeros([len(self.curve_types),len(self.max_doses)])
         # self.perc_survive = np.zeros([len(self.curve_types),len(self.max_doses)])

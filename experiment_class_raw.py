@@ -130,7 +130,7 @@ class Experiment():
                                                    n_sims = 1,
                                                    # fig_title = fig_title,
                                                    # init_counts=init_counts,
-                                                   plot=False,
+                                            
                                                    **self.population_options))
             self.n_survive = np.zeros([len(self.populations)])
             
@@ -219,18 +219,25 @@ class Experiment():
             
         elif self.experiment_type == 'drug-regimen':
             # pbar = tqdm(total=len(self.populations))
-            kk=0
+            # kk=0
             for p in self.populations:
                 for i in range(self.n_sims):
                     # initialize new drug curve
                     p.drug_curve = p.gen_curves()
-                    c,n_survive = p.simulate()
-                    fig = p.plot_timecourse()
-                    self.n_survive[kk] += n_survive
-                    fig_savename = 'timecourse_p=' + str(p.prob_drop) + '_' + str(i)
-                    fig_savename = fig_savename.replace('.','')
-                    self.figures.append((fig_savename,fig))                    
-                kk+=1
+                    counts,n_survive = p.simulate()
+                    drug = p.drug_curve
+                    drug = np.array([drug])
+                    drug = np.transpose(drug)
+                    counts = np.concatenate((counts,drug),axis=1)
+                    # fig = p.plot_timecourse()
+                    # self.n_survive[kk] += n_survive
+                    # fig_savename = 'timecourse_p=' + str(p.prob_drop) + '_' + str(i)
+                    # fig_savename = fig_savename.replace('.','')
+                    # self.figures.append((fig_savename,fig))    
+                    save_folder = 'p_drop=' + str(p.prob_drop)
+                    save_folder = save_folder.replace('.',',')
+                    self.save_counts(counts,i,save_folder)
+                # kk+=1
                 # pbar.update()
                 self.perc_survive = 100*self.n_survive/self.n_sims
             
