@@ -12,7 +12,7 @@ options = {'n_impulse':20,
            'plot':False}
 
 p = np.array([0,0.2,0.4,0.6,0.8])
-n_sims = 1
+n_sims = 100
 experiment_type = 'drug-regimen'
 
 e = Experiment(experiment_type=experiment_type,
