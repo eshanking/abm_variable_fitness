@@ -223,12 +223,19 @@ class Experiment():
             for p in self.populations:
                 for i in range(self.n_sims):
                     # initialize new drug curve
-                    p.drug_curve = p.gen_curves()
+                    p.drug_curve,u = p.gen_curves()
                     counts,n_survive = p.simulate()
                     drug = p.drug_curve
                     drug = np.array([drug])
                     drug = np.transpose(drug)
-                    counts = np.concatenate((counts,drug),axis=1)
+                    
+                    regimen = self.compute_regimen(p, u)
+                    regimen = np.array([regimen])
+                    regimen = np.transpose(regimen)
+                    regimen_t = np.zeros(drug.shape)
+                    regimen_t[0:len(regimen)] = regimen
+                    
+                    counts = np.concatenate((counts,drug,regimen_t),axis=1)
                     # fig = p.plot_timecourse()
                     # self.n_survive[kk] += n_survive
                     # fig_savename = 'timecourse_p=' + str(p.prob_drop) + '_' + str(i)
@@ -454,6 +461,15 @@ class Experiment():
         savename = self.results_path + '//' + save_folder + '//' + prefix + num + '.csv'
         np.savetxt(savename, counts, delimiter=",")
         return
+    
+    def compute_regimen(self,p,u):
+        gap = int(np.floor(p.n_gen/p.n_impulse))
+        regimen = np.zeros(int(p.n_gen/gap))
+        for i in range(p.n_impulse):
+            if u[(i+1)*gap-1] == 1:
+                regimen[i] = 1
+                
+        return regimen
         
 ###############################################################################
 # Testing

@@ -22,6 +22,7 @@ class Population:
                  div_scale = 1,
                  drug_log_scale = False,
                  drug_curve = None,
+                 drug_regimen = None,
                  debug=False,
                  entropy_lim = None,
                  fig_title = '',
@@ -136,9 +137,14 @@ class Population:
         
         # Generate drug dosage curves if one is not specified
         if drug_curve is None:
-            self.drug_curve = self.gen_curves()
+            self.drug_curve,u = self.gen_curves()
         else:
             self.drug_curve = drug_curve
+            
+        if drug_regimen is None:
+            self.drug_regimen = u
+        else:
+            self.drug_regimen = drug_regimen
         
         # Visualization parameters
         self.plot = plot # boolean
@@ -305,6 +311,7 @@ class Population:
     def gen_curves(self):
         curve = np.zeros(self.n_gen)
         # print('hi')
+        u = None
         if self.curve_type == 'linear': # aka ramp linearly till timestep defined by steepness
             # cur_dose = 0
             for i in range(self.n_gen):
@@ -349,7 +356,7 @@ class Population:
         elif self.curve_type == 'pulsed':
             u = self.gen_impulses()
             curve = self.convolve_pharm(u)
-        return curve
+        return curve, u
 
 ###############################################################################
     # Run one abm simulation (ignores n_sim)
