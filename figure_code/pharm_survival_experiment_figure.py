@@ -13,7 +13,7 @@ def int_to_binary(num, pad=4):
     return bin(num)[2:].zfill(pad)
 
 data_folder = 'results_09172020_0001'
-max_cells = 10**6 # carrying capacity for determining if a population survived or not
+max_cells = 0.6*10**6 # carrying capacity for determining if a population survived or not
 
 ###############################################################################
 # generate figure and axes
@@ -77,7 +77,7 @@ for exp in experiment_folders:
                 counts_t += counts
             k+=1
         
-        counts = counts/np.max(counts) # normalize cell counts to the carrying capacity     
+        counts = counts/max_cells # normalize cell counts to the carrying capacity     
         # plot each simulation trace in grey
         for allele in range(counts.shape[1]):
             all_ax[row].plot(counts[:,allele],linewidth=1.0,color='grey',alpha=0.5)
@@ -103,7 +103,7 @@ for exp in experiment_folders:
     
     all_ax[row].set_prop_cycle(cc)
     
-    counts_t = counts_t/np.max(counts_t)
+    counts_t = counts_t/max_cells
     for allele in range(counts.shape[1]):
         if allele in sorted_index_big:
             # only label the trace for the legend if the cell count is large enough (don't want to bother putting tiny populations in the legend)
@@ -183,6 +183,10 @@ for ax in drug_ax:
     ax.yaxis.tick_left()
     ax.ticklabel_format(style='sci',axis='y',scilimits=(0,0))
     ax.set_ylim(0,220)
+    
+for ax in all_ax:
+    ax.set_ylim(-0.05,1.05)
+
 
 all_ax[int(np.floor(len(all_ax)/2))].set_ylabel('Proportion of Max Cell Count',fontsize=12)
 all_ax[int(np.floor(len(all_ax)/2))].yaxis.set_label_position("right")
