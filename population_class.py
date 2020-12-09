@@ -1,11 +1,10 @@
-# TODO: check fitness landscape computation in abm model
-
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-# from cycler import cycler
-# import seaborn as sns
+from cycler import cycler
+import seaborn as sns
 import scipy as sp
+import math
 # import warnings
 
 class Population:
@@ -13,43 +12,42 @@ class Population:
     # Initializer
     def __init__(self,
                  carrying_cap = True,
-                 curve_type='constant',
-                 counts_log_scale = False,
-                 constant_pop = False,
-                 drugless_path = None,
-                 death_rate = 0.15,
-                 death_noise = 0.01,
-                 div_scale = 1,
-                 drug_log_scale = False,
-                 drug_curve = None,
-                 drug_regimen = None,
-                 debug=False,
-                 entropy_lim = None,
+                 curve_type='constant', # drug concentration curve
+                 counts_log_scale = False, # plot counts on log scale
+                 constant_pop = False, # normalize to a constant population size
+                 drugless_path = None, # file path for the drugless growth rates
+                 death_rate = 0.15, 
+                 div_scale = 1, # scale the division rate to model different organisms
+                 drug_log_scale = False, # plot the drug concentration curve on a log scale
+                 drug_curve = None, # input a custom drug concentration curve
+                 drug_regimen = None, # for modeling drug regimens
+                 debug=False, # print the current time step
+                 entropy_lim = None, # entropy plotting limits
                  fig_title = '',
+                 fitness_data = 'generate', # 'generate' = generate fitness data using drugless growth rates, ic50, and drug concentration. 'manual' = input fitness landscape from csv
                  h_step = 500,
-                 ic50_path = None,
-                 init_counts = None,
-                 k_elim = 0.001,
+                 ic50_path = None, 
+                 init_counts = None, # default is 10,000 wild type cells
+                 k_elim = 0.001, # form modeling pharmacokinetics
                  k_abs = 0.07,
+                 landscape_path = None, # path for custom fitness landscape
                  min_dose = 0,
-                 mut_rate = 0.01,
-                 max_cells = 10**6,
-                 max_dose = 1,
-                 mut_noise = 0.005,
-                 mode='ab',
-                 n_gen=1000,
-                 n_impulse = 2,
-                 normalize = False,
-                 n_sims = 1,
+                 mut_rate = 0.01, # mutation rate
+                 max_cells = 10**6, # carrying capacity
+                 max_dose = 1, 
+                 n_gen=1000, # number of generations
+                 n_impulse = 2, # for modeling dosage regimens
+                 normalize = False, 
+                 n_sims = 1, # number of simulations to average together
                  pad_right = False,
-                 plot=True,
-                 plot_entropy = True,
-                 prob_drop=0,
-                 slope = None,
+                 plot=True, # plot the result of simulate()
+                 plot_entropy = False, # plot the entropy of the population over time underneath the timecourse
+                 prob_drop=0, 
+                 slope = None, 
                  thresh = 5000,
-                 v2=True,
-                 x_lim = None,
-                 y_lim = None
+                 three_undefined = False, # this is a hack because allele #3 in the pyrimethamine data is not quantified
+                 x_lim = None, # plotting
+                 y_lim = None # plotting
                  ):
                 
         # Evolutionary parameters
@@ -58,20 +56,9 @@ class Population:
         self.n_gen = n_gen
         self.max_cells = max_cells
         
-        # Initial number of cells (default = 10,000 at 0000)
-        if init_counts is None:
-            self.init_counts = np.zeros(16)
-            self.init_counts[0] = 10**4
-        else:
-            self.init_counts = init_counts
-        
         # ABM parameters
         self.mut_rate = mut_rate
         self.death_rate = death_rate
-        
-        # Vectorized model parameters
-        self.death_noise = death_noise
-        self.mut_noise = mut_noise
         
         # Timecouse (set after running self.simulate)
         self.counts = np.zeros([self.n_gen,16])
@@ -80,37 +67,53 @@ class Population:
                                             
         # Model parameters
         
-        self.mode = mode # ABM vs vectorized vs hybrid (not yet implemented)
         self.carrying_cap = True
         self.thresh = thresh # Threshold for hybrid model (not yet implemented)
         self.div_scale = div_scale # Scale the division rate to simulate different organisms
         self.n_sims = n_sims # number of simulations to average together in self.simulate
         self.constant_pop = constant_pop
-        self.v2 = v2
+        # self.v2 = v2
         self.debug = debug
         
-        # Data paths
-        if drugless_path is None:
-            # self.drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
-            self.drugless_path = 'ogbunugafor_drugless.csv'
-        else:
-            self.drugless_path = drugless_path
+        self.fitness_data = fitness_data
+        
+        # Generate fitness data from IC50 and drugless growth rate data
+        if fitness_data == 'generate':
+            # Data paths
+            if drugless_path is None:
+                # self.drugless_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\ogbunugafor_drugless.csv"
+                self.drugless_path = 'ogbunugafor_drugless.csv'
+            else:
+                self.drugless_path = drugless_path
+                
+            if ic50_path is None:
+                # self.ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
+                self.ic50_path = 'pyrimethamine_ic50.csv'
+            else:
+                self.ic50_path = ic50_path
             
-        if ic50_path is None:
-            # self.ic50_path = "C:\\Users\\Eshan\\Documents\\python scripts\\theory division\\abm_variable_fitness\\data\\pyrimethamine_ic50.csv"
-            self.ic50_path = 'pyrimethamine_ic50.csv'
+            # load the data
+            self.drugless_rates = self.load_fitness(self.drugless_path)
+            self.ic50 = self.load_fitness(self.ic50_path)
+            
+            self.timestep_scale = max(self.drugless_rates)
+            # determine number of alleles from data (not yet implemented)
+            self.n_allele = self.drugless_rates.shape[0]
+        
+        # load fitness landscape from excel file
+        elif fitness_data == 'manual':
+            self.landscape_path = landscape_path
+            self.landscape_data = self.load_fitness(self.landscape_path)
+            
+            self.timestep_scale = max(self.landscape_data)
+            self.n_allele = self.landscape_data.shape[0]
+            
+        # Initial number of cells (default = 10,000 at 0000)
+        if init_counts is None:
+            self.init_counts = np.zeros(self.n_allele)
+            self.init_counts[0] = 10**4
         else:
-            self.ic50_path = ic50_path
-        
-        # load the data
-        self.drugless_rates = self.load_fitness(self.drugless_path)
-        self.ic50 = self.load_fitness(self.ic50_path)
-        
-        self.timestep_scale = max(self.drugless_rates)
-
-        
-        # determine number of alleles from data (not yet implemented)
-        self.n_allele = self.drugless_rates.shape[0]
+            self.init_counts = init_counts
         
         # Dose parameters
         self.curve_type = curve_type # linear, constant, heaviside, pharm, pulsed
@@ -164,18 +167,19 @@ class Population:
     
     # Load data
     def load_fitness(self,data_path):
-            # also use to load ic50 and drugless growth rate
-            fitness = pd.read_csv(data_path)
-            cols = list(fitness.columns)
-            fit_array = np.array(cols)
-            fit_array = fit_array.astype(np.float)
-            return fit_array
+        # also use to load ic50 and drugless growth rate
+        fitness = pd.read_csv(data_path)
+        cols = list(fitness.columns)
+        fit_array = np.array(cols)
+        fit_array = fit_array.astype(np.float)
+        return fit_array
         
 ###############################################################################
     # ABM helper methods
     
     # converts decimals to binary
-    def int_to_binary(self,num, pad=4):
+    def int_to_binary(self,num):
+        pad = int(math.log(self.n_allele,2))
         return bin(num)[2:].zfill(pad)
     
     # computes hamming distance between two genotypes
@@ -221,9 +225,9 @@ class Population:
     
     def gen_fit_land(self,conc):
         
-        fit_land = np.zeros(16)
+        fit_land = np.zeros(self.n_allele)
         
-        for allele in range(16):
+        for allele in range(self.n_allele):
             fit_land[allele] = self.gen_fitness(allele,conc,self.drugless_rates,self.ic50)
         
         return fit_land
@@ -360,96 +364,96 @@ class Population:
 
 ###############################################################################
     # Run one abm simulation (ignores n_sim)
-    def run_abm(self):
+    # def run_abm(self):
         
-        n_allele = len(self.drugless_rates)
+    #     n_allele = len(self.drugless_rates)
 
-        # Obtain transition matrix for mutations
-        P = self.random_mutations( n_allele )
+    #     # Obtain transition matrix for mutations
+    #     P = self.random_mutations( n_allele )
 
-        # Keeps track of cell counts at each generation
-        counts = np.zeros([self.n_gen, n_allele], dtype=int)
-        # drug_curve = np.zeros(self.n_gen)
+    #     # Keeps track of cell counts at each generation
+    #     counts = np.zeros([self.n_gen, n_allele], dtype=int)
+    #     # drug_curve = np.zeros(self.n_gen)
 
-        counts[0,:] = self.init_counts
+    #     counts[0,:] = self.init_counts
     
-        for mm in range(self.n_gen-1):
-            # Normalize to constant population
+    #     for mm in range(self.n_gen-1):
+    #         # Normalize to constant population
                             
-            conc = self.drug_curve[mm]
+    #         conc = self.drug_curve[mm]
             
-            fit_land = np.zeros(self.n_allele)
+    #         fit_land = np.zeros(self.n_allele)
             
-            # fitness of allele 0010 is not quantified in the dataset - set to zero
-            for kk in range(self.n_allele):
-                if kk == 3:
-                    fit_land[kk] = 0 # fitness of allele 0010 is not quantified in the dataset
-                elif kk < 3:
-                    fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
-                elif kk > 3:
-                    fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+    #         # fitness of allele 0010 is not quantified in the dataset - set to zero
+    #         for kk in range(self.n_allele):
+    #             if kk == 3:
+    #                 fit_land[kk] = 0 # fitness of allele 0010 is not quantified in the dataset
+    #             elif kk < 3:
+    #                 fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+    #             elif kk > 3:
+    #                 fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
             
-            fit_land = fit_land*self.div_scale
-            n_cells = np.sum( counts[mm] )
+    #         fit_land = fit_land*self.div_scale
+    #         n_cells = np.sum( counts[mm] )
     
-            # Scale division rates based on carrying capacity
-            if self.carrying_cap:
-                division_scale = 1 / (1+(2*np.sum(counts[mm])/self.max_cells)**4)
-            else:
-                division_scale = 1
+    #         # Scale division rates based on carrying capacity
+    #         if self.carrying_cap:
+    #             division_scale = 1 / (1+(2*np.sum(counts[mm])/self.max_cells)**4)
+    #         else:
+    #             division_scale = 1
     
-            if counts[mm].sum()>self.max_cells:
-                division_scale = 0
+    #         if counts[mm].sum()>self.max_cells:
+    #             division_scale = 0
     
-            div_rate = np.repeat( fit_land*division_scale, counts[mm] )
-            cell_types = np.repeat( np.arange(n_allele) , counts[mm] )
+    #         div_rate = np.repeat( fit_land*division_scale, counts[mm] )
+    #         cell_types = np.repeat( np.arange(n_allele) , counts[mm] )
     
-            # Death of cells
-            death_rates = np.random.rand(n_cells)
-            surv_ind = death_rates > self.death_rate
-            div_rate = div_rate[surv_ind]
-            cell_types = cell_types[surv_ind]
-            n_cells = len(cell_types)
+    #         # Death of cells
+    #         death_rates = np.random.rand(n_cells)
+    #         surv_ind = death_rates > self.death_rate
+    #         div_rate = div_rate[surv_ind]
+    #         cell_types = cell_types[surv_ind]
+    #         n_cells = len(cell_types)
 
-            counts[mm+1] = np.bincount(cell_types, minlength=n_allele)
+    #         counts[mm+1] = np.bincount(cell_types, minlength=n_allele)
     
-            #Divide and mutate cells
-            div_ind = np.random.rand(n_cells) < div_rate
+    #         #Divide and mutate cells
+    #         div_ind = np.random.rand(n_cells) < div_rate
     
-            # Mutate cells
-            # initial state of allele types
-            daughter_types = cell_types[div_ind].copy()
+    #         # Mutate cells
+    #         # initial state of allele types
+    #         daughter_types = cell_types[div_ind].copy()
     
-            # Generate random numbers to check for mutation
-            daughter_counts = np.bincount( daughter_types , minlength=n_allele)
+    #         # Generate random numbers to check for mutation
+    #         daughter_counts = np.bincount( daughter_types , minlength=n_allele)
     
-            # Mutate cells of each allele type
-            for allele in np.random.permutation(np.arange(n_allele)):
-                n_mut = np.sum( np.random.rand( daughter_counts[allele] ) < self.mut_rate )
+    #         # Mutate cells of each allele type
+    #         for allele in np.random.permutation(np.arange(n_allele)):
+    #             n_mut = np.sum( np.random.rand( daughter_counts[allele] ) < self.mut_rate )
     
-                # note that columns in P are normalized to probability densities (columns sum to 1)
-                mutations = np.random.choice(n_allele, size=n_mut, p=P[:,allele]).astype(np.uint8)
+    #             # note that columns in P are normalized to probability densities (columns sum to 1)
+    #             mutations = np.random.choice(n_allele, size=n_mut, p=P[:,allele]).astype(np.uint8)
     
-                #Add mutating cell to their final types
-                counts[mm+1] +=np.bincount( mutations , minlength=n_allele)
-                counts[:,3] =  0
+    #             #Add mutating cell to their final types
+    #             counts[mm+1] +=np.bincount( mutations , minlength=n_allele)
+    #             counts[:,3] =  0
                 
-                #Substract mutating cells from that allele
-                daughter_counts[allele] -=n_mut
+    #             #Substract mutating cells from that allele
+    #             daughter_counts[allele] -=n_mut
     
-            counts[mm+1] += daughter_counts
+    #         counts[mm+1] += daughter_counts
             
-            # Normalize to constant population            
-            if self.constant_pop:
-                cur_size = np.sum(counts[mm+1])
-                counts[mm+1] = counts[mm+1]*self.init_counts[0]/cur_size
-                counts[mm+1] = np.floor(counts[mm+1])
+    #         # Normalize to constant population            
+    #         if self.constant_pop:
+    #             cur_size = np.sum(counts[mm+1])
+    #             counts[mm+1] = counts[mm+1]*self.init_counts[0]/cur_size
+    #             counts[mm+1] = np.floor(counts[mm+1])
 
-        return counts
+    #     return counts
     
     def run_abm_v2(self):
         
-        n_allele = len(self.drugless_rates)
+        n_allele = self.n_allele
 
         # Obtain transition matrix for mutations
         P = self.random_mutations( n_allele )
@@ -470,15 +474,30 @@ class Population:
             
             fit_land = np.zeros(self.n_allele)
             
-            # fitness of allele 0010 is not quantified in the dataset - set to zero
-            for kk in range(self.n_allele):
-                if kk == 3:
-                    fit_land[kk] = 0 # fitness of allele 0010 is not quantified in the dataset
-                elif kk < 3:
-                    fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
-                elif kk > 3:
-                    fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+            if self.fitness_data == 'generate':
             
+                # fitness of allele 0010 is not quantified in the pyrimethamine dataset - set to zero
+                if self.three_undefined == True:
+                    for kk in range(self.n_allele):
+                        if kk == 3:
+                            fit_land[kk] = 0 # fitness of allele 0010 is not quantified in the dataset
+                        elif kk < 3:
+                            fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+                        elif kk > 3:
+                            fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+                
+                else:
+                    for kk in range(self.n_allele):
+                        if kk == 3:
+                            fit_land[kk] = 0 # fitness of allele 0010 is not quantified in the dataset
+                        elif kk < 3:
+                            fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+                        elif kk > 3:
+                            fit_land[kk] = self.gen_fitness(kk,conc,self.drugless_rates,self.ic50)
+                            
+            elif self.fitness_data == 'manual':
+                fit_land = self.landscape_data
+                    
             fit_land = fit_land*self.div_scale
     
             # Scale division rates based on carrying capacity
@@ -539,18 +558,20 @@ class Population:
     # Runs abm simulation n_sim times and averages results. Then sets self.counts to final result. Also quantifies survival number
     def simulate(self):
         
-        counts_t = np.zeros([self.n_gen,16])
-        counts = np.zeros([self.n_gen,16])
-        counts_survive = np.zeros([self.n_gen,16])
-        counts_extinct = np.zeros([self.n_gen,16])
+        counts_t = np.zeros([self.n_gen,self.n_allele])
+        counts = np.zeros([self.n_gen,self.n_allele])
+        counts_survive = np.zeros([self.n_gen,self.n_allele])
+        counts_extinct = np.zeros([self.n_gen,self.n_allele])
         
         n_survive = 0
         for i in range(self.n_sims):
             
-            if self.v2:
-                counts_t = self.run_abm_v2()
-            else:
-                counts_t = self.run_abm()
+            # if self.v2:
+            #     counts_t = self.run_abm_v2()
+            # else:
+            #     counts_t = self.run_abm()
+            
+            counts_t = self.run_abm_v2()
                 
             if any(counts_t[self.n_gen-1,:]>0.1*self.max_cells):
                 n_survive+=1
@@ -696,65 +717,71 @@ class Population:
         left = 0.1
         width = 0.8
         
-        fig,(ax1,ax3) = plt.subplots(2,1,figsize=(6,4),sharex=True) 
+        if self.plot_entropy == True:
+            fig,(ax1,ax3) = plt.subplots(2,1,figsize=(6,4),sharex=True) 
+            ax3.set_position([left, 0.2, width, 0.2]) # ax3 is entropy
+        else:
+            fig,ax1 = plt.subplots(1,1,figsize=(6,4),sharex=True)
         
         ax1.set_position([left, 0.5, width, 0.6]) # ax1 is the timecourse
-        ax3.set_position([left, 0.2, width, 0.2]) # ax3 is entropy
-        
-        ax2 = ax1.twinx() # ax2 is the drug timecourse
-        ax2.set_position([left, 0.5, width, 0.6])
                 
         counts_total = np.sum(counts,axis=0)
         
         sorted_index = counts_total.argsort()
-        sorted_index_big = sorted_index[8:]
+        sorted_index_big = sorted_index[-8:]
         
-        # colors = sns.color_palette('bright')
-        # colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
+        colors = sns.color_palette('bright')
+        colors = np.concatenate((colors[0:9],colors[0:7]),axis=0)
         # shuffle colors
 
-        # colors[[14,15]] = colors[[15,14]]
+        colors[[14,15]] = colors[[15,14]]
         
-        # cc = (cycler(color=colors) + 
-        #       cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
-        #                         '--','--','--','--','--','--','--']))
+        cc = (cycler(color=colors) + 
+              cycler(linestyle=['-', '-','-','-','-','-','-','-','-',
+                                '--','--','--','--','--','--','--']))
         
-        # ax1.set_prop_cycle(cc)
+        ax1.set_prop_cycle(cc)
 
         color = [0.5,0.5,0.5]
-        ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
         
-        if self.drug_log_scale:
-            if all(self.drug_curve>0):
-                drug_curve = np.log10(self.drug_curve)
-            yticks = np.log10([10**-4,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])    
-            ax2.set_yticks(yticks)
-            ax2.set_yticklabels(['0','$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
-                             '$10^1$','$10^2$','$10^3$'])
-            ax2.set_ylim(-4,3)
-        else:
-            drug_curve = self.drug_curve
-            ax2.set_ylim(0,1.1*max(drug_curve))
-    
-    #    ax2.plot(drug_curve, color=color, linewidth=3.0, linestyle = 'dashed')
-        ax2.plot(drug_curve, color=color, linewidth=2.0)
-        ax2.tick_params(axis='y', labelcolor=color)
+        if self.fitness_data == 'generate':
+            ax2 = ax1.twinx() # ax2 is the drug timecourse
+            ax2.set_position([left, 0.5, width, 0.6])
+            ax2.set_ylabel('Drug Concentration (uM)', color=color,fontsize=20) # we already handled the x-label with ax1
             
-        ax2.legend(['Drug Conc.'],loc=(1.25,0.93),frameon=False,fontsize=15)
+            if self.drug_log_scale:
+                if all(self.drug_curve>0):
+                    drug_curve = np.log10(self.drug_curve)
+                yticks = np.log10([10**-4,10**-3,10**-2,10**-1,10**0,10**1,10**2,10**3])    
+                ax2.set_yticks(yticks)
+                ax2.set_yticklabels(['0','$10^{-3}$','$10^{-2}$','$10^{-1}$','$10^{0}$',
+                                 '$10^1$','$10^2$','$10^3$'])
+                ax2.set_ylim(-4,3)
+            else:
+                drug_curve = self.drug_curve
+                ax2.set_ylim(0,1.1*max(drug_curve))
         
-        ax2.tick_params(labelsize=15)
-    #    plt.yticks(fontsize=18)
-        ax2.set_title(title,fontsize=20)
+        #    ax2.plot(drug_curve, color=color, linewidth=3.0, linestyle = 'dashed')
+            ax2.plot(drug_curve, color=color, linewidth=2.0)
+            ax2.tick_params(axis='y', labelcolor=color)
+                
+            ax2.legend(['Drug Conc.'],loc=(1.25,0.93),frameon=False,fontsize=15)
+            
+            ax2.tick_params(labelsize=15)
+        #    plt.yticks(fontsize=18)
+            ax2.set_title(title,fontsize=20)
         
         if self.normalize:
             counts = counts/np.max(counts)
             
+        # print(str(sorted_index_big))
         for allele in range(counts.shape[1]):
             if allele in sorted_index_big:
                 ax1.plot(counts[:,allele],linewidth=3.0,label=str(self.int_to_binary(allele)))
     #            print(str(allele))
             else:
                 ax1.plot(counts[:,allele],linewidth=3.0,label=None)
+                
         ax1.legend(loc=(1.25,-.12),frameon=False,fontsize=15)
     #    ax.legend(frameon=False,fontsize=15)
     #        ax.legend([str(int_to_binary(allele))])
@@ -767,14 +794,15 @@ class Population:
         ax1.set_ylabel('Cells',fontsize=20)
         ax1.tick_params(labelsize=15)
         
-        e = self.entropy(counts)
-        
-        ax3.plot(e,color='black')
-        ax3.set_xlabel('Time',fontsize=20)
-        ax3.set_ylabel('Entropy',fontsize=20)
-        if self.entropy_lim is not None:
-            ax3.set_ylim(0,self.entropy_lim)
-        ax3.tick_params(labelsize=15)
+        if self.plot_entropy == True:
+            e = self.entropy(counts)
+            
+            ax3.plot(e,color='black')
+            ax3.set_xlabel('Time',fontsize=20)
+            ax3.set_ylabel('Entropy',fontsize=20)
+            if self.entropy_lim is not None:
+                ax3.set_ylim(0,self.entropy_lim)
+            ax3.tick_params(labelsize=15)
         
         if self.y_lim is not None:
             y_lim = self.y_lim
@@ -851,8 +879,3 @@ class Population:
         ax.set_frame_on(False)
         
         return ax
-###############################################################################
-# Testing
-
-# p1 = Population(k_abs=0.001,max_dose=200,mut_rate=0.00005,death_rate=0.3,curve_type='pharm')
-# p1.simulate()
